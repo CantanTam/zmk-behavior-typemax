@@ -1,0 +1,16 @@
+# Copyright (c) 2020 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: red or green led blink
+
+compatible: "zmk,behavior-blink"
+
+# 同样使用 two_param，因为你需要 &blink <索引> <次数>
+include: two_param.yaml 
+
+properties:
+  gpios:
+    type: phandle-array
+    required: true
+  label:
+    type: string

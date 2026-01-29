@@ -1,0 +1,17 @@
+# Copyright (c) 2020 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: red or green led light
+
+compatible: "zmk,behavior-led"
+
+# 包含这个文件后，你就不需要手动写 "#binding-cells" 了
+include: two_param.yaml 
+
+properties:
+  # 官方模板里没有这个，所以你必须手动加上，否则 DTS 里的 gpios 属性会报错
+  gpios:
+    type: phandle-array
+    required: true
+  label:
+    type: string

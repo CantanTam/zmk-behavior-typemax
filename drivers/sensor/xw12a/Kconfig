@@ -1,0 +1,5 @@
+config XW12A
+    bool "XW12A capacitive touch sensor"
+    default y
+    depends on DT_HAS_XINWANG_XW12A_ENABLED
+    select I2C

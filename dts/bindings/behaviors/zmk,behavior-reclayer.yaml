@@ -1,0 +1,15 @@
+# Copyright (c) 2020 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: "Record layer index to Flash"
+
+compatible: "zmk,behavior-reclayer"
+
+# 包含 one_param.yaml，它会自动处理 "#binding-cells = <1>"
+include: one_param.yaml
+
+# 如果你的行为不需要额外的硬件属性（如 gpios），properties 这里可以留空
+# 或者直接删除整个 properties 块
+properties:
+  label:
+    type: string

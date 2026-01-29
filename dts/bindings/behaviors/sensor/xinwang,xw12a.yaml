@@ -1,0 +1,11 @@
+description: XW12A capacitive touch controller
+
+compatible: "xinwang,xw12a"
+
+include: i2c-device.yaml
+
+properties:
+  int-gpios:
+    type: phandle-array
+    required: true
+    description: Interrupt GPIO pin for touch events
