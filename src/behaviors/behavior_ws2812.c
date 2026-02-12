@@ -2,6 +2,8 @@
 #include <zephyr/device.h>
 #include <zephyr/kernel.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/drivers/led_strip.h>
+
 
 // 定义 WS2812 的电源引脚 P0.19 和 GPIO0
 #define LED_PWR_PIN  19
@@ -48,6 +50,39 @@ static int ws2812_pwr_pm_action(const struct device *dev, enum pm_device_action 
     default:
         return -ENOTSUP;
     }
+}
+
+/* --- 1. 基础定义 --- */
+typedef enum { 
+    WS_OFF = 0, 
+    WS_RED, 
+    WS_GREEN, 
+    WS_BLUE 
+} ws2812_color_t;
+
+// 定义宏方便调用
+#define RED   WS_RED
+#define GREEN WS_GREEN
+#define BLUE  WS_BLUE
+#define OFF   WS_OFF
+
+#define STRIP_NODE DT_NODELABEL(led_strip)
+static const struct device *strip = DEVICE_DT_GET(STRIP_NODE);
+static struct led_rgb pixels[4];
+
+/* --- 2. 供外部调用的工具函数 --- */
+void light_up_ws2812(ws2812_color_t c1, ws2812_color_t c2, ws2812_color_t c3, ws2812_color_t c4) {
+    if (!device_is_ready(strip)) return;
+
+    ws2812_color_t colors[4] = {c1, c2, c3, c4};
+    const uint8_t brt = 4; 
+
+    for (int i = 0; i < 4; i++) {
+        pixels[i].r = (colors[i] == WS_RED)   ? brt : 0;
+        pixels[i].g = (colors[i] == WS_GREEN) ? brt : 0;
+        pixels[i].b = (colors[i] == WS_BLUE)  ? brt : 0;
+    }
+    led_strip_update_rgb(strip, pixels, 4);
 }
 
 PM_DEVICE_DEFINE(ws2812_pwr_pm_data, ws2812_pwr_pm_action);
