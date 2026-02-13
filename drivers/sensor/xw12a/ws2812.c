@@ -9,8 +9,11 @@ typedef enum { WS_OFF = 0, WS_RED, WS_GREEN, WS_BLUE } ws2812_color_t;
 #define BLUE WS_BLUE
 #define OFF WS_OFF
 
+#define MY_THEME   RED, GREEN, BLUE, RED
+
 extern void light_up_ws2812(ws2812_color_t c1, ws2812_color_t c2, ws2812_color_t c3, ws2812_color_t c4);
 extern void ws2812_power_on(void);
+extern void ws2812_power_off(void);
 
 /**
  * 业务层的初始化函数
@@ -23,7 +26,15 @@ static int my_app_led_setup(const struct device *dev) {
     k_msleep(100);
 
     // 2. 业务逻辑决定：点亮特定的颜色方案
-    light_up_ws2812(BLUE,GREEN, BLUE, RED);
+    light_up_ws2812(MY_THEME);
+
+    k_msleep(5000);
+
+    light_up_ws2812(GREEN,GREEN, BLUE, GREEN);
+
+    k_msleep(5000);
+
+    ws2812_power_off();
 
     return 0;
 }
