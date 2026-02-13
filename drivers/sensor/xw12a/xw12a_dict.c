@@ -19,20 +19,15 @@
 #define PAD_SIX_SEVEN  (RIGHT)
 #define PAD_SEVEN_SIX  (LEFT)
 
-#define PAD_EIGHT_X_NINE_EIGHT    (C_BRIGHTNESS_INC)
-#define PAD_EIGHT_X_NINE_NINE     (C_BRIGHTNESS_DEC)
-#define PAD_EIGHT_X_NINE_TEN      (CANCEL)
-#define PAD_EIGHT_X_NINE_ELEVEN   (CANCEL)
-#define PAD_EIGHT_X_ELEVEN_EIGHT  (C_PREV)
-#define PAD_EIGHT_X_ELEVEN_NINE   (C_PLAY_PAUSE)
-#define PAD_EIGHT_X_ELEVEN_TEN    (CANCEL)
-#define PAD_EIGHT_X_ELEVEN_ELEVEN (C_NEXT)
-#define PAD_TEN_X_ELEVEN_EIGHT    (C_MUTE)
+#define PAD_NINE_X_TEN_NINE       (C_PREV)
+#define PAD_NINE_X_TEN_TEN        (C_NEXT)
+#define PAD_NINE_X_TEN_ELEVEN     (CANCEL)
+#define PAD_NINE_X_ELEVEN_NINE    (C_BRIGHTNESS_DEC)
+#define PAD_NINE_X_ELEVEN_TEN     (CANCEL)
+#define PAD_NINE_X_ELEVEN_ELEVEN  (C_BRIGHTNESS_INC)
 #define PAD_TEN_X_ELEVEN_NINE     (CANCEL)
 #define PAD_TEN_X_ELEVEN_TEN      (C_VOLUME_DOWN)
 #define PAD_TEN_X_ELEVEN_ELEVEN   (C_VOLUME_UP)
-
-
 
 //extern bool left_pad_statu;
 
@@ -99,23 +94,20 @@ uint32_t right_dict_addr_padx(uint8_t padx) {
 // pad8 pad9 pad10 pad11 在 top_pad_run_mode == true 状态下使用的字典
 // 如果新的 xw12a 芯片正常的话，这里要做出修改
 static const struct dict_struct top_pad_dict[] = {
-    // 屏幕亮度
-    { 0x54, PAD_EIGHT_X_NINE_EIGHT      },
-    { 0x58, PAD_EIGHT_X_NINE_NINE       },
-    { 0x5A, PAD_EIGHT_X_NINE_TEN        },
-    { 0x5B, PAD_EIGHT_X_NINE_ELEVEN     },
-
     // 媒体控制
-    { 0x69, PAD_EIGHT_X_ELEVEN_EIGHT    },
-    { 0x6D, PAD_EIGHT_X_ELEVEN_NINE     },
-    { 0x6F, PAD_EIGHT_X_ELEVEN_TEN      },
-    { 0x70, PAD_EIGHT_X_ELEVEN_ELEVEN   },
+    { 0x54, PAD_NINE_X_TEN_NINE    }, 
+    { 0x58, PAD_NINE_X_TEN_TEN     }, 
+    { 0x5A, PAD_NINE_X_TEN_ELEVEN  }, 
+
+    // 亮度控制
+    { 0x62, PAD_NINE_X_ELEVEN_NINE   }, 
+    { 0x66, PAD_NINE_X_ELEVEN_TEN    }, 
+    { 0x68, PAD_NINE_X_ELEVEN_ELEVEN }, 
 
     // 音量控制
-    { 0xBD, PAD_TEN_X_ELEVEN_EIGHT      },
-    { 0xC1, PAD_TEN_X_ELEVEN_NINE       },
-    { 0xC3, PAD_TEN_X_ELEVEN_TEN        },
-    { 0xC4, PAD_TEN_X_ELEVEN_ELEVEN     },
+    { 0x96, PAD_TEN_X_ELEVEN_NINE    }, 
+    { 0x9A, PAD_TEN_X_ELEVEN_TEN     }, 
+    { 0x9C, PAD_TEN_X_ELEVEN_ELEVEN  }, 
 };
 
 // 紧跟其后，自动计算长度
@@ -128,5 +120,5 @@ uint32_t top_dict_addr_padx(uint8_t padx) {
             return top_pad_dict[i].dict_value;
         }
     }
-    return 0;
+    //return 0; // 因为 top_pad_action 所有的组合都被使用了，所以没有 dict_key 值为空的情况
 }

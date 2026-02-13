@@ -30,7 +30,7 @@ static int my_app_led_setup(const struct device *dev) {
 
     k_msleep(5000);
 
-    light_up_ws2812(GREEN,GREEN, BLUE, GREEN);
+    light_up_ws2812(BLUE,BLUE, BLUE, GREEN);
 
     k_msleep(5000);
 
