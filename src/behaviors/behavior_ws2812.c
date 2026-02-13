@@ -4,6 +4,8 @@
 #include <zephyr/pm/device.h>
 #include <zephyr/drivers/led_strip.h>
 
+// ws2812 led灯亮度
+#define BRIGHTNESS 2
 
 // 定义 WS2812 的电源引脚 P0.19 和 GPIO0
 #define LED_PWR_PIN  19
@@ -75,7 +77,7 @@ void light_up_ws2812(ws2812_color_t c1, ws2812_color_t c2, ws2812_color_t c3, ws
     if (!device_is_ready(strip)) return;
 
     ws2812_color_t colors[4] = {c1, c2, c3, c4};
-    const uint8_t brt = 4; 
+    const uint8_t brt = BRIGHTNESS; 
 
     for (int i = 0; i < 4; i++) {
         pixels[i].r = (colors[i] == WS_RED)   ? brt : 0;

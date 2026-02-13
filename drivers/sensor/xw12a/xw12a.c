@@ -66,6 +66,7 @@ static void key_tap(uint32_t encoded_keycode) {
     if (encoded_keycode == CANCEL) {
         ws2812_power_off();
         top_pad_run_mode = !top_pad_run_mode;
+        top_first_last_pad = 0x0F;
         return;
     }
 
@@ -305,67 +306,6 @@ static void right_pad_action(const struct device *dev) {
     return;
 }
 
-// 只是记录 top_first_last_pad 的值用来决定 top_pad_action 会实现什么功能以及开启指示灯
-static void top_pad_mode(const struct device *dev) {
-    // 对比 xw12a 寄存器八到十一位值的变化，当五到八位产生变化才执行 pad8 ~ pad9 的操作函数
-    if (cut_xw12a_data((get_xw12a_pad_value(dev) ^ prev_xw12a_value),4) == 0x00){
-        return;
-    }
-
-    uint8_t first_touch_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 4);
-
-    int count;
-
-    // 0.5 秒内离开才继续下面的操作，否则退出整个函数，所以这里是等于 1111
-    for(count = 0; count < 50; count++) {
-        k_msleep(10);
-        if (cut_xw12a_data(get_xw12a_pad_value(dev), 4) == 0x0F) {
-                break; 
-            }
-    }   
-
-    if (count == 50){
-        while (cut_xw12a_data(get_xw12a_pad_value(dev), 4) != 0x0F) {
-            k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
-        }
-        prev_xw12a_value = get_xw12a_pad_value(dev);
-        //left_pad_statu = false;
-        return;
-    }
-
-    // 0.5 秒后再按回去才能继续下面的操作，否则退出整个函数，所以这里是不等于 1111
-    for(count = 0; count < 50; count++) {
-        k_msleep(10);
-        if (cut_xw12a_data(get_xw12a_pad_value(dev), 4) != 0x0F) {
-                break; 
-            }
-    }
-
-    if (count == 50){
-        while (cut_xw12a_data(get_xw12a_pad_value(dev), 4) == 0x0F) {
-            k_msleep(10); // 每 10ms 检查一次，直到你真的把手指拿开
-        }
-        prev_xw12a_value = get_xw12a_pad_value(dev);
-        //left_pad_statu = false;
-        return;
-    }
-
-    key_tap(K);
-
-    // 阻塞式等待：手指不离开，程序就一直停在这里检查，什么都不发
-    while (cut_xw12a_data(get_xw12a_pad_value(dev), 12) != 0x0F) {
-        k_msleep(100); // 极高频检查
-    }
-
-
-    // 这里要根据 top_first_last_pad 的值调用不同的 ws2812b 指示灯行为
-
-    //top_pad_run_mode = true;
-    prev_xw12a_value = get_xw12a_pad_value(dev);
-    return;
-
-}
-
 // 根据 top_pad_mode 函数结果执行相应的 pad 操作
 static void top_pad_action(const struct device *dev)
 {
@@ -471,6 +411,15 @@ static void top_pad_action(const struct device *dev)
 
         uint32_t top_pad_combo = top_dict_addr_padx(top_first_last_final_pad);
 
+        if (top_pad_combo == 0){
+            while (cut_xw12a_data(get_xw12a_pad_value(dev), 4) != 0x0F) {
+                k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
+            }
+            //left_pad_statu = false;
+            prev_xw12a_value = get_xw12a_pad_value(dev);
+            return;
+        }        
+
         key_tap(top_pad_combo);
 
     }
@@ -512,14 +461,7 @@ static void pad_statu_detect(const struct device *dev)
     if (right_pad_value != 0x0F) {
         right_pad_action(dev);
     }
-    
-    /* 这里可能是硬件问题，暂时先屏蔽功能先
-    // 这里只是切换 pad9 pad10 pad11 的执行模式
-    if (top_pad_value != 0x0F && !top_pad_run_mode) {
-        top_pad_mode(dev);
-    }*/
 
-    // 根据 top_pad_mode 函数选择的模式执行相应的 pad 行为
     if (top_pad_value != 0x0F) {
         top_pad_action(dev);
     }

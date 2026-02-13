@@ -120,5 +120,5 @@ uint32_t top_dict_addr_padx(uint8_t padx) {
             return top_pad_dict[i].dict_value;
         }
     }
-    //return 0; // 因为 top_pad_action 所有的组合都被使用了，所以没有 dict_key 值为空的情况
+    return 0; // 因为 top_pad_action 所有的组合都被使用了，所以没有 dict_key 值为空的情况
 }
