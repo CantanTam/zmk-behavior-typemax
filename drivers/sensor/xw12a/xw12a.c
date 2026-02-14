@@ -462,9 +462,13 @@ static void pad_statu_detect(const struct device *dev)
         right_pad_action(dev);
     }
 
+    #ifdef CONFIG_TOP_PAD_CONTROL
+
     if (top_pad_value != 0x0F) {
         top_pad_action(dev);
     }
+
+    #endif /* 顶部 touchpad 控制电脑 */
 
     // 扫动补丁：若仍有键被按住，继续处理
     if (xw12a_pad_value != 0xFFFF) {

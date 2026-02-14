@@ -57,4 +57,4 @@ PM_DEVICE_DEFINE(xw12a_pwr_pm_data, xw12a_pwr_pm_action);
 // 定义系统设备实例
 DEVICE_DEFINE(xw12a_pwr_inst, "XW12A_PWR", xw12a_pwr_init, 
               PM_DEVICE_GET(xw12a_pwr_pm_data), NULL, NULL, 
-              APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY, NULL);
+              POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY, NULL);
