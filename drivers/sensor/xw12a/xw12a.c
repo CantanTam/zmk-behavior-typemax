@@ -32,20 +32,11 @@ uint16_t prev_xw12a_value = 0xFFFF;
 // 记录 pad9 ~ pad11 在 top_pad_run_mode 为 false 时计算得到的值；
 uint8_t top_first_last_pad = 0x0F;
 
-// false → pad9 ~ pad11 切换模式
-// true → pad9 ~ pad11 执行模式
 bool top_pad_run_mode = false;
-
-// 定义状态机变量
-bool is_key_tap = false;
-bool left_pad_statu = false;
-bool right_pad_statu = false;
-bool top_pad_statu = false;
 
 uint8_t left_pad_value;
 uint8_t right_pad_value;
 uint8_t top_pad_value;
-
 
 struct xw12a_config {
     struct i2c_dt_spec i2c;
@@ -67,6 +58,7 @@ static void key_tap(uint32_t encoded_keycode) {
         ws2812_power_off();
         top_pad_run_mode = !top_pad_run_mode;
         top_first_last_pad = 0x0F;
+        prev_xw12a_value = 0xFFFF;
         return;
     }
 
@@ -87,7 +79,6 @@ static void key_tap(uint32_t encoded_keycode) {
         zmk_keycode_state_changed_from_encoded(encoded_keycode, false, release_time)
     );
 
-    //is_key_tap = false;
 }
 
 static void key_press(uint32_t encoded_keycode) {
@@ -135,7 +126,6 @@ static uint8_t cut_xw12a_data(uint16_t raw_value, int shift_bits) {
 // --- 空操作函数定义，方便你后续添加逻辑 ---
 
 static void left_pad_action(const struct device *dev) {
-    //left_pad_statu = true;
 
     // 对比 xw12a 寄存器前四位值的变化，当前四位产生变化才执行 pad0 ~ pad3 的操作函数
     if (cut_xw12a_data((get_xw12a_pad_value(dev) ^ prev_xw12a_value),12) == 0x00){
@@ -159,7 +149,6 @@ static void left_pad_action(const struct device *dev) {
             k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
         }
         prev_xw12a_value = get_xw12a_pad_value(dev);
-        //left_pad_statu = false;
         return;
     }
 
@@ -176,7 +165,6 @@ static void left_pad_action(const struct device *dev) {
             k_msleep(10); // 每 10ms 检查一次，直到你真的把手指拿开
         }
         prev_xw12a_value = get_xw12a_pad_value(dev);
-        //left_pad_statu = false;
         return;
     }
 
@@ -190,7 +178,6 @@ static void left_pad_action(const struct device *dev) {
         while (cut_xw12a_data(get_xw12a_pad_value(dev), 12) != 0x0F) {
             k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
         }
-        //left_pad_statu = false;
         prev_xw12a_value = get_xw12a_pad_value(dev);
         return;
     }
@@ -245,7 +232,6 @@ static void right_pad_action(const struct device *dev) {
             k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
         }
         prev_xw12a_value = get_xw12a_pad_value(dev);
-        //left_pad_statu = false;
         return;
     }
 
@@ -262,7 +248,6 @@ static void right_pad_action(const struct device *dev) {
             k_msleep(10); // 每 10ms 检查一次，直到你真的把手指拿开
         }
         prev_xw12a_value = get_xw12a_pad_value(dev);
-        //left_pad_statu = false;
         return;
     }
 
@@ -276,7 +261,6 @@ static void right_pad_action(const struct device *dev) {
         while (cut_xw12a_data(get_xw12a_pad_value(dev), 8) != 0x0F) {
             k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
         }
-        //left_pad_statu = false;
         prev_xw12a_value = get_xw12a_pad_value(dev);
         return;
     }
@@ -332,7 +316,6 @@ static void top_pad_action(const struct device *dev)
                 k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
             }
             prev_xw12a_value = get_xw12a_pad_value(dev);
-            //left_pad_statu = false;
             return;
         }
 
@@ -349,7 +332,6 @@ static void top_pad_action(const struct device *dev)
                 k_msleep(10); // 每 10ms 检查一次，直到你真的把手指拿开
             }
             prev_xw12a_value = get_xw12a_pad_value(dev);
-            //left_pad_statu = false;
             return;
         }
 
@@ -403,7 +385,6 @@ static void top_pad_action(const struct device *dev)
                 k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
             }
             prev_xw12a_value = get_xw12a_pad_value(dev);
-            //left_pad_statu = false;
             return;
         }        
 
@@ -411,31 +392,24 @@ static void top_pad_action(const struct device *dev)
 
         uint32_t top_pad_combo = top_dict_addr_padx(top_first_last_final_pad);
 
+        /*
         if (top_pad_combo == 0){
             while (cut_xw12a_data(get_xw12a_pad_value(dev), 4) != 0x0F) {
                 k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
             }
-            //left_pad_statu = false;
             prev_xw12a_value = get_xw12a_pad_value(dev);
             return;
-        }        
+        } */       
 
         key_tap(top_pad_combo);
 
+        return;
+
     }
-
-
 
 };
 
-
-
-
-
-
-
 // --- 核心状态检测函数 ---
-
 static void pad_statu_detect(const struct device *dev)
 {
     struct xw12a_data *data = dev->data;

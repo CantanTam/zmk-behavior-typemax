@@ -7,6 +7,9 @@ target_sources(app PRIVATE src/behaviors/behavior_blink.c)
 target_sources(app PRIVATE src/behaviors/behavior_battery.c)
 target_sources(app PRIVATE src/behaviors/behavior_reclayer.c)
 target_sources(app PRIVATE src/behaviors/behavior_tolayer.c)
+target_sources(app PRIVATE src/behaviors/behavior_togtouch.c)
+target_sources(app PRIVATE src/behaviors/behavior_touch_init.c)
+
 
 target_sources(app PRIVATE src/behaviors/behavior_xw12a_power.c)
 target_sources(app PRIVATE src/behaviors/behavior_ws2812.c)

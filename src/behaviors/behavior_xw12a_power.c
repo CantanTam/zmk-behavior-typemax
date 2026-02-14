@@ -8,6 +8,7 @@
 #define INT_PIN  6
 #define PWR_PORT DT_NODELABEL(gpio1)
 
+extern uint8_t use_touch;
 static const struct device *gpio_dev;
 
 static int xw12a_pwr_init(const struct device *dev) {
@@ -17,8 +18,8 @@ static int xw12a_pwr_init(const struct device *dev) {
         return -ENODEV;
     }
 
-    // 初始化 P1.10 为输出低电平（开启电源）
-    gpio_pin_configure(gpio_dev, PWR_PIN, GPIO_OUTPUT_LOW);
+    // 如果 use_touch 为真（非0），则选 LOW，否则选 HIGH
+    gpio_pin_configure(gpio_dev, PWR_PIN, (use_touch == 1 ? GPIO_OUTPUT_LOW : GPIO_OUTPUT_HIGH));
     
     // 注意：INT 引脚（P1.6）通常由传感器驱动程序初始化，这里初始化电源即可
     return 0;
