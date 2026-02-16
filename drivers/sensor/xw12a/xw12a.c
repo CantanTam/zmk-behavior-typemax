@@ -21,6 +21,7 @@ typedef enum { WS_OFF = 0, WS_RED, WS_GREEN, WS_BLUE } ws2812_color_t;
 #define BLUE WS_BLUE
 #define OFF WS_OFF
 
+extern uint8_t use_touch; // use_touch == 0 就关闭 touchtype 功能
 extern void light_up_ws2812(ws2812_color_t c1, ws2812_color_t c2, ws2812_color_t c3, ws2812_color_t c4);
 extern void ws2812_power_on(void);
 extern void ws2812_power_off(void);
@@ -461,6 +462,10 @@ static void xw12a_work_handler(struct k_work *work)
 
 static void xw12a_gpio_callback(const struct device *port, struct gpio_callback *cb, uint32_t pins)
 {
+    if (use_touch == 0 ){
+        return;
+    }
+    
     struct xw12a_data *data = CONTAINER_OF(cb, struct xw12a_data, gpio_cb);
     k_work_submit(&data->work);
 }
