@@ -26,18 +26,28 @@ extern void light_up_ws2812(ws2812_color_t c1, ws2812_color_t c2, ws2812_color_t
 extern void ws2812_power_on(void);
 extern void ws2812_power_off(void);
 
-
+bool pad_action_statu = false;
 // 记录上一次的 xw12a 寄存器状态值
 uint16_t prev_xw12a_value = 0xFFFF;
+
+// left pad 使用的时间戳和触控按钮记录
+uint64_t left_prev_time = 0;
+uint8_t left_first_pad = 0x0F;
+uint8_t left_final_pad = 0x0F;
+
+// right pad 使用的时间戳和触控按钮记录
+uint64_t right_prev_time = 0;
+uint8_t right_first_pad = 0x0F;
+uint8_t right_final_pad = 0x0F;
 
 // 记录 pad9 ~ pad11 在 top_pad_run_mode 为 false 时计算得到的值；
 uint8_t top_first_last_pad = 0x0F;
 
 bool top_pad_run_mode = false;
 
-uint8_t left_pad_value;
-uint8_t right_pad_value;
-uint8_t top_pad_value;
+//uint8_t left_pad_value;
+//uint8_t right_pad_value;
+//uint8_t top_pad_value;
 
 struct xw12a_config {
     struct i2c_dt_spec i2c;
@@ -128,52 +138,13 @@ static uint8_t cut_xw12a_data(uint16_t raw_value, int shift_bits) {
 
 static void left_pad_action(const struct device *dev) {
 
-    // 对比 xw12a 寄存器前四位值的变化，当前四位产生变化才执行 pad0 ~ pad3 的操作函数
-    if (cut_xw12a_data((get_xw12a_pad_value(dev) ^ prev_xw12a_value),12) == 0x00){
-        return;
-    }
+    pad_action_statu = true;
 
-    uint8_t first_left_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 12);
+    uint8_t left_first_final_pad = left_first_pad + left_final_pad * left_final_pad;
 
-    int count;
+    uint32_t left_pad_combo = left_dict_addr_padx(left_first_final_pad);
 
-    // 0.5 秒内离开才继续下面的操作，否则退出整个函数，所以这里是等于 1111
-    for(count = 0; count < 50; count++) {
-        k_msleep(10);
-        if (cut_xw12a_data(get_xw12a_pad_value(dev), 12) == 0x0F) {
-                break; 
-            }
-    }
-
-    if (count == 50){
-        while (cut_xw12a_data(get_xw12a_pad_value(dev), 12) != 0x0F) {
-            k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
-        }
-        prev_xw12a_value = get_xw12a_pad_value(dev);
-        return;
-    }
-
-    // 0.5 秒离再按回去才能继续下面的操作，否则退出整个函数，所以这里是不等于 1111
-    for(count = 0; count < 50; count++) {
-        k_msleep(10);
-        if (cut_xw12a_data(get_xw12a_pad_value(dev), 12) != 0x0F) {
-                break; 
-            }
-    }
-
-    if (count == 50){
-        while (cut_xw12a_data(get_xw12a_pad_value(dev), 12) == 0x0F) {
-            k_msleep(10); // 每 10ms 检查一次，直到你真的把手指拿开
-        }
-        prev_xw12a_value = get_xw12a_pad_value(dev);
-        return;
-    }
-
-    uint8_t last_left_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 12);
-    uint8_t first_last_left_pad = first_left_pad + last_left_pad * last_left_pad;
-
-    uint32_t left_pad_combo = left_dict_addr_padx(first_last_left_pad);
-
+    /*
     // 如果按的组合值不在字典 key 项，例如 pad0_pad2 ，松开后就退出函数
     if (left_pad_combo == 0){
         while (cut_xw12a_data(get_xw12a_pad_value(dev), 12) != 0x0F) {
@@ -182,13 +153,19 @@ static void left_pad_action(const struct device *dev) {
         prev_xw12a_value = get_xw12a_pad_value(dev);
         return;
     }
+    */
+
+    if (left_pad_combo == 0x00){
+        return;
+    }
 
     key_tap(left_pad_combo);
 
     // --- 1. 长按判定 (500ms 内松手即视为单击) ---
-    for (count = 0; count < TAP_PRESS_GAP; count++) {
+    for (int count = 0; count < TAP_PRESS_GAP; count++) {
         k_msleep(100);
         if (cut_xw12a_data(get_xw12a_pad_value(dev), 12) == 0x0F) {
+            pad_action_statu = false;
             prev_xw12a_value = get_xw12a_pad_value(dev);
             return; 
         }
@@ -204,59 +181,21 @@ static void left_pad_action(const struct device *dev) {
 
     // 只要手一松，立刻发释放，并退出
     key_release(left_pad_combo);
+    pad_action_statu = false;
     prev_xw12a_value = get_xw12a_pad_value(dev);
     return;
-    
+
 }
 
 static void right_pad_action(const struct device *dev) {
+
+    pad_action_statu = true;
+
+    uint8_t right_first_final_pad = right_first_pad + right_final_pad * right_final_pad;
     
-    // 对比 xw12a 寄存器 五到八位值的变化，当五到八位产生变化才执行 pad4 ~ pad7 的操作函数
-    if (cut_xw12a_data((get_xw12a_pad_value(dev) ^ prev_xw12a_value),8) == 0x00){
-        return;
-    }
+    uint32_t right_pad_combo = right_dict_addr_padx(right_first_final_pad);
 
-    uint8_t first_right_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 8);
-
-    int count;
-
-    // 0.5 秒内离开才继续下面的操作，否则退出整个函数，所以这里是 1111
-    for(count = 0; count < 50; count++) {
-        k_msleep(10);
-        if (cut_xw12a_data(get_xw12a_pad_value(dev), 8) == 0x0F) {
-                break; 
-            }
-    }
-
-    if (count == 50){
-        while (cut_xw12a_data(get_xw12a_pad_value(dev), 8) != 0x0F) {
-            k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
-        }
-        prev_xw12a_value = get_xw12a_pad_value(dev);
-        return;
-    }
-
-    // 0.5 秒离再按回去才能继续下面的操作，否则退出整个函数，所以这里是不等于 1111
-    for(count = 0; count < 50; count++) {
-        k_msleep(10);
-        if (cut_xw12a_data(get_xw12a_pad_value(dev), 8) != 0x0F) {
-                break; 
-            }
-    }
-
-    if (count == 50){
-        while (cut_xw12a_data(get_xw12a_pad_value(dev), 8) == 0x0F) {
-            k_msleep(10); // 每 10ms 检查一次，直到你真的把手指拿开
-        }
-        prev_xw12a_value = get_xw12a_pad_value(dev);
-        return;
-    }
-
-    uint8_t last_right_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 8);
-    uint8_t first_last_right_pad = first_right_pad + last_right_pad * last_right_pad;
-
-    uint32_t right_pad_combo = right_dict_addr_padx(first_last_right_pad);
-
+    /*
     // 如果按的组合值不在字典 key 项，例如 pad0_pad2 ，松开后就退出函数
     if (right_pad_combo == 0){
         while (cut_xw12a_data(get_xw12a_pad_value(dev), 8) != 0x0F) {
@@ -265,13 +204,19 @@ static void right_pad_action(const struct device *dev) {
         prev_xw12a_value = get_xw12a_pad_value(dev);
         return;
     }
+    */
+
+    if (right_pad_combo == 0x00){
+        return;
+    }
 
     key_tap(right_pad_combo);
 
     // --- 1. 长按判定 (500ms 内松手即视为单击) ---
-    for (count = 0; count < TAP_PRESS_GAP; count++) {
+    for (int count = 0; count < TAP_PRESS_GAP; count++) {
         k_msleep(100);
         if (cut_xw12a_data(get_xw12a_pad_value(dev), 8) == 0x0F) {
+            pad_action_statu = false;
             prev_xw12a_value = get_xw12a_pad_value(dev);
             return; 
         }
@@ -287,6 +232,7 @@ static void right_pad_action(const struct device *dev) {
 
     // 只要手一松，立刻发释放，并退出
     key_release(right_pad_combo);
+    pad_action_statu = false;
     prev_xw12a_value = get_xw12a_pad_value(dev);
     return;
 }
@@ -413,20 +359,86 @@ static void top_pad_action(const struct device *dev)
 // --- 核心状态检测函数 ---
 static void pad_statu_detect(const struct device *dev)
 {
+    if (pad_action_statu){
+        return;
+    }
+
     struct xw12a_data *data = dev->data;
 
     uint16_t xw12a_pad_value = get_xw12a_pad_value(dev);
 
-    if (xw12a_pad_value == 0xFFFF){
+    if (xw12a_pad_value == 0xFFFF ){
         prev_xw12a_value = 0xFFFF;
         return;
     }
 
-    // 2、截取各个 Pad 的值（使用你的切割逻辑）
-    left_pad_value = cut_xw12a_data(xw12a_pad_value, 12);
-    right_pad_value = cut_xw12a_data(xw12a_pad_value, 8);
-    top_pad_value   = cut_xw12a_data(xw12a_pad_value, 4);
+    //  比较前后两种 touch pad 状态来进行判定
+    uint16_t prev_current_pad_compare = prev_xw12a_value ^ xw12a_pad_value;
 
+    // left pad 动作的判定
+    if ( cut_xw12a_data(prev_current_pad_compare, 12) != 0x00 ){
+
+        if ( cut_xw12a_data(xw12a_pad_value, 12) != 0x00 ){
+
+            if ( k_uptime_get() - left_prev_time <= 700 ){
+
+                left_prev_time = k_uptime_get();
+                left_final_pad = cut_xw12a_data(xw12a_pad_value, 12);
+                left_pad_action(dev);
+
+            } else {
+
+                left_prev_time = k_uptime_get();
+                left_first_pad = cut_xw12a_data(xw12a_pad_value, 12);
+
+            }
+        }
+    } 
+    
+    if ( cut_xw12a_data(prev_current_pad_compare, 8) != 0x00 ){
+
+        if ( cut_xw12a_data(xw12a_pad_value, 8) != 0x00 ){
+
+            if ( k_uptime_get() - right_prev_time <= 700 ){
+
+                right_prev_time = k_uptime_get();
+                right_final_pad = cut_xw12a_data(xw12a_pad_value, 8);
+                right_pad_action(dev);
+
+            } else {
+
+                right_prev_time = k_uptime_get();
+                right_first_pad = cut_xw12a_data(xw12a_pad_value, 8);
+
+            }
+        }
+    }
+    /*
+    // 2、截取各个 Pad 的值（使用你的切割逻辑）
+    uint8_t left_pad_value = cut_xw12a_data(xw12a_pad_value, 12);
+
+    if ((left_pad_value ^ left_first_pad) != 0x00 && left_pad_value != 0x0F){
+        if ( k_uptime_get() - left_prev_time <= 500 ){
+
+            left_prev_time = k_uptime_get();
+            left_final_pad = left_pad_value;
+            prev_xw12a_value = get_xw12a_pad_value(dev);
+            left_pad_action(dev);
+
+        } else {
+
+            left_prev_time = k_uptime_get();
+            left_first_pad = left_pad_value;
+            prev_xw12a_value = get_xw12a_pad_value(dev);
+        }
+
+    }
+    */
+
+    //right_pad_value = cut_xw12a_data(xw12a_pad_value, 8);
+    //top_pad_value   = cut_xw12a_data(xw12a_pad_value, 4);
+
+    /*
     // 4、判断并执行 left_pad_action
     if (left_pad_value != 0x0F) {
         left_pad_action(dev);
@@ -436,6 +448,7 @@ static void pad_statu_detect(const struct device *dev)
     if (right_pad_value != 0x0F) {
         right_pad_action(dev);
     }
+    */
 
     #ifdef CONFIG_TOP_PAD_CONTROL
 
@@ -445,10 +458,13 @@ static void pad_statu_detect(const struct device *dev)
 
     #endif /* 顶部 touchpad 控制电脑 */
 
-    // 扫动补丁：若仍有键被按住，继续处理
-    if (xw12a_pad_value != 0xFFFF) {
+    prev_xw12a_value = get_xw12a_pad_value(dev);
+
+    // 扫动补丁：若仍有键被按住，继续处理,这一段是 gemini 给的答案，
+    // 注释掉就可以正常运行，但我不敢删除它
+    /*if (xw12a_pad_value != 0xFFFF) {
         k_work_submit(&data->work);
-    }
+    }*/
 }
 
 // --- Zephyr 驱动标准回调与初始化 ---
