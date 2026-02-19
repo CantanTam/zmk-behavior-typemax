@@ -70,8 +70,6 @@ static void key_tap(uint32_t encoded_keycode) {
     if (encoded_keycode == CANCEL) {
         ws2812_power_off();
         top_pad_run_mode = !top_pad_run_mode;
-        top_first_last_pad = 0x0F;
-        prev_xw12a_value = 0xFFFF;
         return;
     }
 
@@ -225,78 +223,34 @@ static void top_pad_action(const struct device *dev)
         return;
     }
 
-    if (!top_pad_run_mode){
-        uint8_t first_top_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 4);
+    if (top_pad_run_mode == false){
 
-        int count;
+        top_first_last_pad = top_first_pad * top_final_pad;
 
-        // 0.5 秒内离开才继续下面的操作，否则退出整个函数，所以这里是 1111
-        for(count = 0; count < 50; count++) {
-            k_msleep(10);
-            if (cut_xw12a_data(get_xw12a_pad_value(dev), 4) == 0x0F) {
-                    break; 
-                }
+        ws2812_color_t c1 = OFF, c2 = OFF, c3 = OFF, c4 = OFF;
+
+        switch (top_first_last_pad){
+            case 0x4D : c1 = OFF; c2 = GREEN; c3 = GREEN; c4 = RED;   break;
+            case 0x8F : c1 = OFF; c2 = RED;   c3 = GREEN; c4 = GREEN; break;
+            case 0x5B : c1 = OFF; c2 = GREEN; c3 = RED;   c4 = GREEN; break;
+            default:
+                top_first_last_pad = 0x0F;
+                return;
         }
 
-        if (count == 50){
-            while (cut_xw12a_data(get_xw12a_pad_value(dev), 4) != 0x0F) {
-                k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
-            }
-            prev_xw12a_value = get_xw12a_pad_value(dev);
-            return;
-        }
+        ws2812_power_on();
+        k_msleep(100);
+        light_up_ws2812(c1, c2, c3, c4);
 
-        // 0.5 秒离再按回去才能继续下面的操作，否则退出整个函数，所以这里是不等于 1111
-        for(count = 0; count < 50; count++) {
-            k_msleep(10);
-            if (cut_xw12a_data(get_xw12a_pad_value(dev), 4) != 0x0F) {
-                    break; 
-                }
-        }
-
-        if (count == 50){
-            while (cut_xw12a_data(get_xw12a_pad_value(dev), 4) == 0x0F) {
-                k_msleep(10); // 每 10ms 检查一次，直到你真的把手指拿开
-            }
-            prev_xw12a_value = get_xw12a_pad_value(dev);
-            return;
-        }
-
-        uint8_t last_top_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 4);
-
-        top_first_last_pad = first_top_pad * last_top_pad;
-
-        if (top_first_last_pad == 0x4D ){
-
-            ws2812_power_on();
-            k_msleep(100);
-            light_up_ws2812(OFF,GREEN,GREEN,RED);
-
-        } else if (top_first_last_pad == 0x8F){
-
-            ws2812_power_on();
-            k_msleep(100);
-            light_up_ws2812(OFF,RED,GREEN,GREEN);
-
-        } else if (top_first_last_pad == 0x5B){
-
-            ws2812_power_on();
-            k_msleep(100);
-            light_up_ws2812(OFF,GREEN,RED,GREEN);
-
-        } else {
-
-            top_first_last_pad = 0x0F;
-            return;
-
-        }
-
-        top_pad_run_mode = !top_pad_run_mode;        
+        top_pad_run_mode = true;
+        
+        prev_xw12a_value = get_xw12a_pad_value(dev);
 
     } else {
 
-        uint8_t top_final_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 4);
+        uint8_t top_func_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 4);
 
+        /*
         int count;
 
         // 0.5 秒内离开才继续下面的操作，否则退出整个函数，所以这里是 1111
@@ -313,22 +267,16 @@ static void top_pad_action(const struct device *dev)
             }
             prev_xw12a_value = get_xw12a_pad_value(dev);
             return;
-        }        
+        }
+        */        
 
-        uint8_t top_first_last_final_pad = top_first_last_pad + top_final_pad;
+        uint8_t top_first_last_func_pad = top_first_last_pad + top_func_pad;
 
-        uint32_t top_pad_combo = top_dict_addr_padx(top_first_last_final_pad);
-
-        /*
-        if (top_pad_combo == 0){
-            while (cut_xw12a_data(get_xw12a_pad_value(dev), 4) != 0x0F) {
-                k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
-            }
-            prev_xw12a_value = get_xw12a_pad_value(dev);
-            return;
-        } */       
+        uint32_t top_pad_combo = top_dict_addr_padx(top_first_last_func_pad);  
 
         key_tap(top_pad_combo);
+
+        k_msleep(200);
 
         return;
 
@@ -395,58 +343,27 @@ static void pad_statu_detect(const struct device *dev)
     }
 
     if ( cut_xw12a_data(prev_current_pad_compare, 4) != 0x00 ){
-        if ( cut_xw12a_data(xw12a_pad_value, 4) != 0x00 ){
+        if ( top_pad_run_mode == false ){
 
-            if ( k_uptime_get() - top_prev_time <= 700 ){
+            if ( cut_xw12a_data(xw12a_pad_value, 4) != 0x00 ){
 
-                top_prev_time = k_uptime_get();
-                top_final_pad = cut_xw12a_data(xw12a_pad_value, 4);
-                right_pad_action(dev);
+                if ( k_uptime_get() - top_prev_time <= 700 ){
 
-            } else {
+                    top_prev_time = k_uptime_get();
+                    top_final_pad = cut_xw12a_data(xw12a_pad_value, 4);
+                    top_pad_action(dev);
 
-                top_prev_time = k_uptime_get();
-                top_first_pad = cut_xw12a_data(xw12a_pad_value, 4);
+                } else {
 
+                    top_prev_time = k_uptime_get();
+                    top_first_pad = cut_xw12a_data(xw12a_pad_value, 4);
+
+                }
             }
-        }
-    }
-    /*
-    // 2、截取各个 Pad 的值（使用你的切割逻辑）
-    uint8_t left_pad_value = cut_xw12a_data(xw12a_pad_value, 12);
-
-    if ((left_pad_value ^ left_first_pad) != 0x00 && left_pad_value != 0x0F){
-        if ( k_uptime_get() - left_prev_time <= 500 ){
-
-            left_prev_time = k_uptime_get();
-            left_final_pad = left_pad_value;
-            prev_xw12a_value = get_xw12a_pad_value(dev);
-            left_pad_action(dev);
-
         } else {
-
-            left_prev_time = k_uptime_get();
-            left_first_pad = left_pad_value;
-            prev_xw12a_value = get_xw12a_pad_value(dev);
+            top_pad_action(dev);
         }
-
     }
-    */
-
-    //right_pad_value = cut_xw12a_data(xw12a_pad_value, 8);
-    //top_pad_value   = cut_xw12a_data(xw12a_pad_value, 4);
-
-    /*
-    // 4、判断并执行 left_pad_action
-    if (left_pad_value != 0x0F) {
-        left_pad_action(dev);
-    }
-
-    // 5、判断并执行 right_pad_action
-    if (right_pad_value != 0x0F) {
-        right_pad_action(dev);
-    }
-    */
 
     #ifdef CONFIG_TOP_PAD_CONTROL
 
