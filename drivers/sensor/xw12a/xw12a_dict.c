@@ -5,19 +5,23 @@
 #define CANCEL 0x0F000001 
 
 //定义各个 PAD_X_Y 的操作：
-#define PAD_ZERO_ZERO  (PAGE_UP)
-#define PAD_ONE_ONE    (DELETE)
-#define PAD_ZERO_ONE   (LS(LC(Z)))
-#define PAD_ONE_ZERO   (HOME)
-#define PAD_TWO_THREE  (DOWN)
-#define PAD_THREE_TWO  (UP)
+#define PAD_ZERO_ZERO    (PAGE_UP)
+#define PAD_ONE_ONE      (DELETE)
+#define PAD_TWO_TWO      (UP)
+#define PAD_THREE_THREE  (DOWN)
+#define PAD_ZERO_ONE     (LS(LC(Z)))
+#define PAD_ONE_ZERO     (HOME)
+#define PAD_TWO_THREE    (DOWN)
+#define PAD_THREE_TWO    (UP)
 
-#define PAD_FOUR_FOUR  (BACKSPACE)
-#define PAD_FIVE_FIVE  (PAGE_DOWN)
-#define PAD_FOUR_FIVE  (END)
-#define PAD_FIVE_FOUR  (LC(Z))
-#define PAD_SIX_SEVEN  (RIGHT)
-#define PAD_SEVEN_SIX  (LEFT)
+#define PAD_FOUR_FOUR    (BACKSPACE)
+#define PAD_FIVE_FIVE    (PAGE_DOWN)
+#define PAD_SIX_SIX      (LEFT)
+#define PAD_SEVEN_SEVEN  (RIGHT)
+#define PAD_FOUR_FIVE    (END)
+#define PAD_FIVE_FOUR    (LC(Z))
+#define PAD_SIX_SEVEN    (RIGHT)
+#define PAD_SEVEN_SIX    (LEFT)
 
 #define PAD_NINE_X_TEN_NINE       (C_PREV)
 #define PAD_NINE_X_TEN_TEN        (C_NEXT)
@@ -40,12 +44,14 @@ struct dict_struct {
 
 // pad0 pad1 pad2 pad3 使用 left_pad_dict 字典
 static const struct dict_struct left_pad_dict[] = {
-    { 0x38, PAD_ZERO_ZERO },
-    { 0x84, PAD_ONE_ONE   },
-    { 0x80, PAD_ZERO_ONE  },
-    { 0x3C, PAD_ONE_ZERO  },
-    { 0xD1, PAD_TWO_THREE },
-    { 0xB7, PAD_THREE_TWO },
+    { 0x38, PAD_ZERO_ZERO   },
+    { 0x84, PAD_ONE_ONE     },
+    { 0xB6, PAD_TWO_TWO     },
+    { 0xD2, PAD_THREE_THREE },
+    { 0x80, PAD_ZERO_ONE    },
+    { 0x3C, PAD_ONE_ZERO    },
+    { 0xD1, PAD_TWO_THREE   },
+    { 0xB7, PAD_THREE_TWO   },
     
 };
 
@@ -66,14 +72,16 @@ uint32_t left_dict_addr_padx(uint8_t padx) {
 
 
 
-// pad0 pad1 pad2 pad3 使用 left_pad_dict 字典
+// pad0 pad1 pad2 pad3 使用 right_pad_dict 字典
 static const struct dict_struct right_pad_dict[] = {
-    { 0x38, PAD_FOUR_FOUR },
-    { 0x84, PAD_FIVE_FIVE },
-    { 0x80, PAD_FOUR_FIVE },
-    { 0x3C, PAD_FIVE_FOUR },
-    { 0xD1, PAD_SIX_SEVEN },
-    { 0xB7, PAD_SEVEN_SIX },
+    { 0x38, PAD_FOUR_FOUR   },
+    { 0x84, PAD_FIVE_FIVE   },
+    { 0xB6, PAD_SIX_SIX     },
+    { 0xD2, PAD_SEVEN_SEVEN },
+    { 0x80, PAD_FOUR_FIVE   },
+    { 0x3C, PAD_FIVE_FOUR   },
+    { 0xD1, PAD_SIX_SEVEN   },
+    { 0xB7, PAD_SEVEN_SIX   },
     
 };
 

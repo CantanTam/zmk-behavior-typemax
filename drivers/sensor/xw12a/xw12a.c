@@ -40,14 +40,16 @@ uint64_t right_prev_time = 0;
 uint8_t right_first_pad = 0x0F;
 uint8_t right_final_pad = 0x0F;
 
+
+// top pad 使用的时间戳和触控按钮记录
+uint64_t top_prev_time = 0;
+uint8_t top_first_pad = 0x0F;
+uint8_t top_final_pad = 0x0F;
+
 // 记录 pad9 ~ pad11 在 top_pad_run_mode 为 false 时计算得到的值；
 uint8_t top_first_last_pad = 0x0F;
 
 bool top_pad_run_mode = false;
-
-//uint8_t left_pad_value;
-//uint8_t right_pad_value;
-//uint8_t top_pad_value;
 
 struct xw12a_config {
     struct i2c_dt_spec i2c;
@@ -134,8 +136,6 @@ static uint8_t cut_xw12a_data(uint16_t raw_value, int shift_bits) {
 }
 
 
-// --- 空操作函数定义，方便你后续添加逻辑 ---
-
 static void left_pad_action(const struct device *dev) {
 
     pad_action_statu = true;
@@ -144,18 +144,8 @@ static void left_pad_action(const struct device *dev) {
 
     uint32_t left_pad_combo = left_dict_addr_padx(left_first_final_pad);
 
-    /*
-    // 如果按的组合值不在字典 key 项，例如 pad0_pad2 ，松开后就退出函数
-    if (left_pad_combo == 0){
-        while (cut_xw12a_data(get_xw12a_pad_value(dev), 12) != 0x0F) {
-            k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
-        }
-        prev_xw12a_value = get_xw12a_pad_value(dev);
-        return;
-    }
-    */
-
     if (left_pad_combo == 0x00){
+        pad_action_statu = false;
         return;
     }
 
@@ -195,18 +185,8 @@ static void right_pad_action(const struct device *dev) {
     
     uint32_t right_pad_combo = right_dict_addr_padx(right_first_final_pad);
 
-    /*
-    // 如果按的组合值不在字典 key 项，例如 pad0_pad2 ，松开后就退出函数
-    if (right_pad_combo == 0){
-        while (cut_xw12a_data(get_xw12a_pad_value(dev), 8) != 0x0F) {
-            k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
-        }
-        prev_xw12a_value = get_xw12a_pad_value(dev);
-        return;
-    }
-    */
-
     if (right_pad_combo == 0x00){
+        pad_action_statu = false;
         return;
     }
 
@@ -409,6 +389,24 @@ static void pad_statu_detect(const struct device *dev)
 
                 right_prev_time = k_uptime_get();
                 right_first_pad = cut_xw12a_data(xw12a_pad_value, 8);
+
+            }
+        }
+    }
+
+    if ( cut_xw12a_data(prev_current_pad_compare, 4) != 0x00 ){
+        if ( cut_xw12a_data(xw12a_pad_value, 4) != 0x00 ){
+
+            if ( k_uptime_get() - top_prev_time <= 700 ){
+
+                top_prev_time = k_uptime_get();
+                top_final_pad = cut_xw12a_data(xw12a_pad_value, 4);
+                right_pad_action(dev);
+
+            } else {
+
+                top_prev_time = k_uptime_get();
+                top_first_pad = cut_xw12a_data(xw12a_pad_value, 4);
 
             }
         }
