@@ -310,16 +310,16 @@ static void pad_statu_detect(const struct device *dev)
 
             if ( k_uptime_get() - left_prev_time <= 700 ){
 
-                left_prev_time = k_uptime_get();
                 left_final_pad = cut_xw12a_data(xw12a_pad_value, 12);
                 left_pad_action(dev);
 
-            } else {
+            } else {   
 
-                left_prev_time = k_uptime_get();
                 left_first_pad = cut_xw12a_data(xw12a_pad_value, 12);
 
             }
+
+            left_prev_time = k_uptime_get();
         }
     } 
     
@@ -328,17 +328,17 @@ static void pad_statu_detect(const struct device *dev)
         if ( cut_xw12a_data(xw12a_pad_value, 8) != 0x00 ){
 
             if ( k_uptime_get() - right_prev_time <= 700 ){
-
-                right_prev_time = k_uptime_get();
+  
                 right_final_pad = cut_xw12a_data(xw12a_pad_value, 8);
                 right_pad_action(dev);
 
             } else {
 
-                right_prev_time = k_uptime_get();
                 right_first_pad = cut_xw12a_data(xw12a_pad_value, 8);
 
             }
+
+            right_prev_time = k_uptime_get();
         }
     }
 
@@ -349,29 +349,23 @@ static void pad_statu_detect(const struct device *dev)
 
                 if ( k_uptime_get() - top_prev_time <= 700 ){
 
-                    top_prev_time = k_uptime_get();
                     top_final_pad = cut_xw12a_data(xw12a_pad_value, 4);
                     top_pad_action(dev);
 
                 } else {
 
-                    top_prev_time = k_uptime_get();
                     top_first_pad = cut_xw12a_data(xw12a_pad_value, 4);
 
                 }
+
+                top_prev_time = k_uptime_get();
             }
+
         } else {
+
             top_pad_action(dev);
         }
     }
-
-    #ifdef CONFIG_TOP_PAD_CONTROL
-
-    if (top_pad_value != 0x0F) {
-        top_pad_action(dev);
-    }
-
-    #endif /* 顶部 touchpad 控制电脑 */
 
     prev_xw12a_value = get_xw12a_pad_value(dev);
 
