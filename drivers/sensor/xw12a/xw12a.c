@@ -70,6 +70,7 @@ static void key_tap(uint32_t encoded_keycode) {
     if (encoded_keycode == CANCEL) {
         ws2812_power_off();
         top_pad_run_mode = !top_pad_run_mode;
+        pad_action_statu = false;
         return;
     }
 
@@ -89,6 +90,8 @@ static void key_tap(uint32_t encoded_keycode) {
     raise_zmk_keycode_state_changed(
         zmk_keycode_state_changed_from_encoded(encoded_keycode, false, release_time)
     );
+
+    pad_action_statu = false;
 
 }
 
@@ -218,6 +221,7 @@ static void right_pad_action(const struct device *dev) {
 // 根据 top_pad_mode 函数结果执行相应的 pad 操作
 static void top_pad_action(const struct device *dev)
 {
+    pad_action_statu = true;
     // 对比 xw12a 寄存器九至十二位值的变化，当九至十二位产生变化才执行 pad9 ~ pad11 的操作函数
     if (cut_xw12a_data((get_xw12a_pad_value(dev) ^ prev_xw12a_value),4) == 0x00){
         return;
@@ -248,27 +252,7 @@ static void top_pad_action(const struct device *dev)
 
     } else {
 
-        uint8_t top_func_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 4);
-
-        /*
-        int count;
-
-        // 0.5 秒内离开才继续下面的操作，否则退出整个函数，所以这里是 1111
-        for(count = 0; count < 50; count++) {
-            k_msleep(10);
-            if (cut_xw12a_data(get_xw12a_pad_value(dev), 4) == 0x0F) {
-                    break; 
-                }
-        }
-
-        if (count == 50){
-            while (cut_xw12a_data(get_xw12a_pad_value(dev), 4) != 0x0F) {
-                k_msleep(10); // 每 20ms 检查一次，直到你真的把手指拿开
-            }
-            prev_xw12a_value = get_xw12a_pad_value(dev);
-            return;
-        }
-        */        
+        uint8_t top_func_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 4);     
 
         uint8_t top_first_last_func_pad = top_first_last_pad + top_func_pad;
 
@@ -281,6 +265,8 @@ static void top_pad_action(const struct device *dev)
         return;
 
     }
+
+    pad_action_statu = false;
 
 };
 
