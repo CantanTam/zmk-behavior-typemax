@@ -2,9 +2,12 @@
 #include <zephyr/device.h>
 #include <zephyr/kernel.h>
 #include <zephyr/pm/device.h>
+#include <zmk/event_manager.h>
+#include <zmk/events/keycode_state_changed.h>
 
 // 1. 定义引脚和端口 (去掉 INT_PIN，不再干涉它)
 #define PWR_PIN  10
+#define INT_PIN  6
 #define PWR_PORT DT_NODELABEL(gpio1)
 
 // 外部状态变量
@@ -16,27 +19,32 @@ static struct k_work_delayable xw12a_reset_work;
 
 // --- 核心逻辑：强制复位函数 ---
 static void xw12a_reset_handler(struct k_work *work) {
-    if (pad_action_statu) {
-        k_work_reschedule(&xw12a_reset_work, K_SECONDS(5));
-        return;
+    static int stage = 0;
+
+    switch (stage) {
+        case 0: // 第一步：断电
+            if (pad_action_statu) {
+                k_work_reschedule(&xw12a_reset_work, K_SECONDS(5));
+                return;
+            }
+            gpio_pin_set(gpio_dev, PWR_PIN, 1);
+            stage = 1;
+            // 100ms 后回来执行第二步
+            k_work_reschedule(&xw12a_reset_work, K_MSEC(100));
+            break;
+
+        case 1: // 第二步：通电
+            gpio_pin_set(gpio_dev, PWR_PIN, 0);
+            stage = 2;
+            // 450ms 后回来执行第三步
+            k_work_reschedule(&xw12a_reset_work, K_MSEC(450));
+            break;
+
+        case 2: // 第三步：完成并重新开启长周期
+            stage = 0;
+            k_work_reschedule(&xw12a_reset_work, K_SECONDS(90)); // 默认值是 60
+            break;
     }
-
-    // --- 步骤 1: 彻底断电 ---
-    gpio_pin_set(gpio_dev, PWR_PIN, 1);
-
-    // 给足 200ms，确保内部余电即使有轻微倒灌也能被耗尽
-    k_msleep(100);
-
-    // --- 步骤 2: 重新通电 ---
-    gpio_pin_set(gpio_dev, PWR_PIN, 0);
-
-    // --- 步骤 3: 强制等待校准 ---
-    k_msleep(450);
-
-    // 重新排期
-    k_work_reschedule(&xw12a_reset_work, K_SECONDS(60));
-
-    printk("XW12A: Periodic reset done.\n");
 }
 
 static int xw12a_pwr_init(const struct device *dev) {
@@ -60,9 +68,16 @@ static int xw12a_pwr_pm_action(const struct device *dev, enum pm_device_action a
         case PM_DEVICE_ACTION_SUSPEND:
             k_work_cancel_delayable(&xw12a_reset_work);
             gpio_pin_set(gpio_dev, PWR_PIN, 1);
+
+            gpio_pin_configure(gpio_dev, INT_PIN, GPIO_DISCONNECTED);
+            
             return 0;
 
         case PM_DEVICE_ACTION_RESUME:
+            // 1. 先恢复物理引脚状态（输入 + 上拉）
+            gpio_pin_configure(gpio_dev, INT_PIN, GPIO_INPUT | GPIO_PULL_UP);
+            // 2. 【最关键的一步】重新绑定双边沿触发中断！
+            gpio_pin_interrupt_configure(gpio_dev, INT_PIN, GPIO_INT_EDGE_BOTH);
             gpio_pin_set(gpio_dev, PWR_PIN, 0);
             k_msleep(450);
             k_work_reschedule(&xw12a_reset_work, K_SECONDS(60));
