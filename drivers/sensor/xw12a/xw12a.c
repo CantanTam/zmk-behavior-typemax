@@ -1,4 +1,5 @@
 #define DT_DRV_COMPAT xinwang_xw12a
+#define TAP_TAP_GAP 700
 // 长按首次输出与长按效果之间的时间差 这里是 7*100 ms
 #define TAP_PRESS_GAP 7
 
@@ -174,6 +175,7 @@ static void left_pad_action(const struct device *dev) {
     key_release(left_pad_combo);
     pad_action_statu = false;
     prev_xw12a_value = get_xw12a_pad_value(dev);
+    left_prev_time -= TAP_TAP_GAP;
     return;
 
 }
@@ -215,6 +217,7 @@ static void right_pad_action(const struct device *dev) {
     key_release(right_pad_combo);
     pad_action_statu = false;
     prev_xw12a_value = get_xw12a_pad_value(dev);
+    right_prev_time -= TAP_TAP_GAP;
     return;
 }
 
@@ -239,15 +242,14 @@ static void top_pad_action(const struct device *dev)
             case 0x5B : c1 = OFF;   c2 = GREEN; c3 = RED;   c4 = GREEN; break;
             default:
                 top_first_last_pad = 0x0F;
+                pad_action_statu = false;
                 return;
         }
 
         ws2812_power_on();
         k_msleep(100);
         light_up_ws2812(c1, c2, c3, c4);
-
         top_pad_run_mode = true;
-        
         prev_xw12a_value = get_xw12a_pad_value(dev);
 
     } else {
@@ -262,10 +264,9 @@ static void top_pad_action(const struct device *dev)
 
         k_msleep(200);
 
-        return;
-
     }
 
+    top_prev_time -= TAP_TAP_GAP;
     pad_action_statu = false;
 
 };
@@ -294,7 +295,7 @@ static void pad_statu_detect(const struct device *dev)
 
         if ( cut_xw12a_data(xw12a_pad_value, 12) != 0x00 ){
 
-            if ( k_uptime_get() - left_prev_time <= 700 ){
+            if ( k_uptime_get() - left_prev_time <= TAP_TAP_GAP ){
 
                 left_final_pad = cut_xw12a_data(xw12a_pad_value, 12);
                 left_pad_action(dev);
@@ -313,7 +314,7 @@ static void pad_statu_detect(const struct device *dev)
 
         if ( cut_xw12a_data(xw12a_pad_value, 8) != 0x00 ){
 
-            if ( k_uptime_get() - right_prev_time <= 700 ){
+            if ( k_uptime_get() - right_prev_time <= TAP_TAP_GAP ){
   
                 right_final_pad = cut_xw12a_data(xw12a_pad_value, 8);
                 right_pad_action(dev);
@@ -333,7 +334,7 @@ static void pad_statu_detect(const struct device *dev)
 
             if ( cut_xw12a_data(xw12a_pad_value, 4) != 0x00 ){
 
-                if ( k_uptime_get() - top_prev_time <= 700 ){
+                if ( k_uptime_get() - top_prev_time <= TAP_TAP_GAP ){
 
                     top_final_pad = cut_xw12a_data(xw12a_pad_value, 4);
                     top_pad_action(dev);
