@@ -234,9 +234,9 @@ static void top_pad_action(const struct device *dev)
         ws2812_color_t c1 = OFF, c2 = OFF, c3 = OFF, c4 = OFF;
 
         switch (top_first_last_pad){
-            case 0x4D : c1 = OFF; c2 = GREEN; c3 = GREEN; c4 = RED;   break;
-            case 0x8F : c1 = OFF; c2 = RED;   c3 = GREEN; c4 = GREEN; break;
-            case 0x5B : c1 = OFF; c2 = GREEN; c3 = RED;   c4 = GREEN; break;
+            case 0x4D : c1 = OFF;   c2 = GREEN; c3 = GREEN; c4 = RED;   break;
+            case 0x8F : c1 = OFF;   c2 = RED;   c3 = GREEN; c4 = GREEN; break;
+            case 0x5B : c1 = OFF;   c2 = GREEN; c3 = RED;   c4 = GREEN; break;
             default:
                 top_first_last_pad = 0x0F;
                 return;

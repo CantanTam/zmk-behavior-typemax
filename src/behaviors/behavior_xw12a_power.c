@@ -69,15 +69,20 @@ static int xw12a_pwr_pm_action(const struct device *dev, enum pm_device_action a
             k_work_cancel_delayable(&xw12a_reset_work);
             gpio_pin_set(gpio_dev, PWR_PIN, 1);
 
+            #ifdef CONFIG_MCU_INT_SLEEP
             gpio_pin_configure(gpio_dev, INT_PIN, GPIO_DISCONNECTED);
+            #endif
             
             return 0;
 
         case PM_DEVICE_ACTION_RESUME:
             // 1. 先恢复物理引脚状态（输入 + 上拉）
+            #ifdef CONFIG_MCU_INT_SLEEP
             gpio_pin_configure(gpio_dev, INT_PIN, GPIO_INPUT | GPIO_PULL_UP);
             // 2. 【最关键的一步】重新绑定双边沿触发中断！
             gpio_pin_interrupt_configure(gpio_dev, INT_PIN, GPIO_INT_EDGE_BOTH);
+            #endif
+            
             gpio_pin_set(gpio_dev, PWR_PIN, 0);
             k_msleep(450);
             k_work_reschedule(&xw12a_reset_work, K_SECONDS(60));
