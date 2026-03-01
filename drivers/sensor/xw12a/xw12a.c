@@ -226,7 +226,7 @@ static void top_pad_action(const struct device *dev)
 {
     pad_action_statu = true;
     // 对比 xw12a 寄存器九至十二位值的变化，当九至十二位产生变化才执行 pad9 ~ pad11 的操作函数
-    if (cut_xw12a_data((get_xw12a_pad_value(dev) ^ prev_xw12a_value),4) == 0x00){
+    if (cut_xw12a_data((get_xw12a_pad_value(dev) ^ prev_xw12a_value),8) == 0x00){
         return;
     }
 
@@ -237,9 +237,10 @@ static void top_pad_action(const struct device *dev)
         ws2812_color_t c1 = OFF, c2 = OFF, c3 = OFF, c4 = OFF;
 
         switch (top_first_last_pad){
-            case 0x4D : c1 = OFF;   c2 = GREEN; c3 = GREEN; c4 = RED;   break;
-            case 0x8F : c1 = OFF;   c2 = RED;   c3 = GREEN; c4 = GREEN; break;
-            case 0x5B : c1 = OFF;   c2 = GREEN; c3 = RED;   c4 = GREEN; break;
+            case 0x4D : c1 = GREEN; c2 = GREEN; c3 = RED;   c4 = RED;   break;
+            case 0x8F : c1 = RED;   c2 = GREEN; c3 = GREEN; c4 = RED;   break;
+            case 0xB6 : c1 = RED;   c2 = BLUE;  c3 = GREEN; c4 = GREEN; break;
+            case 0x62 : c1 = GREEN; c2 = RED;  c3 = BLUE;   c4 = GREEN; break;
             default:
                 top_first_last_pad = 0x0F;
                 pad_action_statu = false;
@@ -254,7 +255,7 @@ static void top_pad_action(const struct device *dev)
 
     } else {
 
-        uint8_t top_func_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 4);     
+        uint8_t top_func_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 8);     
 
         uint8_t top_first_last_func_pad = top_first_last_pad + top_func_pad;
 
@@ -310,6 +311,8 @@ static void pad_statu_detect(const struct device *dev)
         }
     } 
     
+    // 直接用 pad4 ~ pad9 来实现 top_pad_action 功能，所以这里先注释掉
+    /*
     if ( cut_xw12a_data(prev_current_pad_compare, 8) != 0x00 ){
 
         if ( cut_xw12a_data(xw12a_pad_value, 8) != 0x00 ){
@@ -328,20 +331,21 @@ static void pad_statu_detect(const struct device *dev)
             right_prev_time = k_uptime_get();
         }
     }
+    */
 
-    if ( cut_xw12a_data(prev_current_pad_compare, 4) != 0x00 ){
+    if ( cut_xw12a_data(prev_current_pad_compare, 8) != 0x00 ){
         if ( top_pad_run_mode == false ){
 
-            if ( cut_xw12a_data(xw12a_pad_value, 4) != 0x00 ){
+            if ( cut_xw12a_data(xw12a_pad_value, 8) != 0x00 ){
 
                 if ( k_uptime_get() - top_prev_time <= TAP_TAP_GAP ){
 
-                    top_final_pad = cut_xw12a_data(xw12a_pad_value, 4);
+                    top_final_pad = cut_xw12a_data(xw12a_pad_value, 8);
                     top_pad_action(dev);
 
                 } else {
 
-                    top_first_pad = cut_xw12a_data(xw12a_pad_value, 4);
+                    top_first_pad = cut_xw12a_data(xw12a_pad_value, 8);
 
                 }
 
