@@ -278,7 +278,7 @@ static void pad_statu_detect(const struct device *dev)
         return;
     }
 
-    struct xw12a_data *data = dev->data;
+    //struct xw12a_data *data = dev->data;
 
     uint16_t xw12a_pad_value = get_xw12a_pad_value(dev);
 

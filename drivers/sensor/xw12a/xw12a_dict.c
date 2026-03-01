@@ -5,14 +5,16 @@
 #define CANCEL 0x0F000001 
 
 //定义各个 PAD_X_Y 的操作：
-#define PAD_ZERO_ZERO    (PAGE_UP)
+#define PAD_ZERO_ZERO    (LS(LC(Z)))
 #define PAD_ONE_ONE      (DELETE)
-#define PAD_TWO_TWO      (UP)
-#define PAD_THREE_THREE  (DOWN)
-#define PAD_ZERO_ONE     (LS(LC(Z)))
-#define PAD_ONE_ZERO     (HOME)
-#define PAD_TWO_THREE    (DOWN)
-#define PAD_THREE_TWO    (UP)
+#define PAD_TWO_TWO      (BACKSPACE)
+#define PAD_THREE_THREE  (LC(Z))
+#define PAD_ZERO_ONE     (DOWN)
+#define PAD_ONE_ZERO     (UP)
+#define PAD_TWO_THREE    (RIGHT)
+#define PAD_THREE_TWO    (LEFT)
+#define PAD_ZERO_THREE   (END)
+#define PAD_THREE_ZERO   (HOME)
 
 #define PAD_FOUR_FOUR    (BACKSPACE)
 #define PAD_FIVE_FIVE    (PAGE_DOWN)
@@ -52,6 +54,8 @@ static const struct dict_struct left_pad_dict[] = {
     { 0x3C, PAD_ONE_ZERO    },
     { 0xD1, PAD_TWO_THREE   },
     { 0xB7, PAD_THREE_TWO   },
+    { 0xCB, PAD_ZERO_THREE  },
+    { 0x3F, PAD_THREE_ZERO  },
     
 };
 
