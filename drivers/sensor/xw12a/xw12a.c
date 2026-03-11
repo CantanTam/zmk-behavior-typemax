@@ -47,6 +47,8 @@ uint64_t top_prev_time = 0;
 uint8_t top_first_pad = 0x0F;
 uint8_t top_final_pad = 0x0F;
 
+
+
 // 记录 pad9 ~ pad11 在 top_pad_run_mode 为 false 时计算得到的值；
 uint8_t top_first_last_pad = 0x0F;
 
@@ -62,6 +64,11 @@ struct xw12a_data {
     struct k_work work;
     const struct device *dev;
 };
+
+static struct xw12a_data xw12a_data_0; 
+struct k_work_delayable keep_alive_dwork;
+
+//struct k_timer keep_alive_timer;
 
 /**
  * key_tap 是完成一次按下、松开操作；key_press 是按下；key_release 是松开
@@ -114,6 +121,31 @@ static void key_release(uint32_t encoded_keycode) {
     );
 
     //k_msleep(30);
+}
+
+// 2. 核心保活函数：运行在“线程上下文”，可以安全调用 i2c_read
+void xw12a_keep_alive_work_handler(struct k_work *work) {
+    // 逻辑检查：如果没开启触摸，或者用户正在操作，就不发心跳
+    if (use_touch == 1 && pad_action_statu == false) {
+        const struct device *dev = xw12a_data_0.dev;
+        if (dev != NULL) {
+            const struct xw12a_config *config = dev->config;
+            uint8_t dummy_buf[2];
+
+            // --- 物理拉低 SDA 的关键动作 ---
+            // 在这里调用是绝对安全的，系统允许它“等待”硬件响应
+            i2c_read_dt(&config->i2c, dummy_buf, sizeof(dummy_buf));
+            
+            // 调试用：成功执行后可以输出一个字符 B
+            key_tap(B); 
+        }
+    }
+
+    // 3. 【最重要的循环逻辑】执行完后，告诉系统：15秒后再叫我一次
+    // 这样就形成了一个永不停止的定时循环
+    if (use_touch == 1) {
+        k_work_schedule(&keep_alive_dwork, K_SECONDS(15));
+    }
 }
 
 // 获取 xw12a 芯片寄存器的 pad 状态值
@@ -402,6 +434,14 @@ static int xw12a_init(const struct device *dev)
     k_work_init(&data->work, xw12a_work_handler);
     gpio_init_callback(&data->gpio_cb, xw12a_gpio_callback, BIT(config->int_gpio.pin));
     gpio_add_callback(config->int_gpio.port, &data->gpio_cb);
+
+    // --- 新增：初始化并启动心跳定时器 ---
+    k_work_init_delayable(&keep_alive_dwork, xw12a_keep_alive_work_handler);
+
+    if (use_touch == 1) {
+        // 安排 15 秒后进行第一次“心跳”
+        k_work_schedule(&keep_alive_dwork, K_SECONDS(15));
+    }
 
     return 0;
 }

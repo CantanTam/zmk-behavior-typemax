@@ -15,37 +15,7 @@ extern uint8_t use_touch;
 extern bool pad_action_statu;
 
 static const struct device *gpio_dev;
-static struct k_work_delayable xw12a_reset_work;
-
-// --- 核心逻辑：强制复位函数 ---
-static void xw12a_reset_handler(struct k_work *work) {
-    static int stage = 0;
-
-    switch (stage) {
-        case 0: // 第一步：断电
-            if (pad_action_statu) {
-                k_work_reschedule(&xw12a_reset_work, K_SECONDS(5));
-                return;
-            }
-            gpio_pin_set(gpio_dev, PWR_PIN, 1);
-            stage = 1;
-            // 100ms 后回来执行第二步
-            k_work_reschedule(&xw12a_reset_work, K_MSEC(100));
-            break;
-
-        case 1: // 第二步：通电
-            gpio_pin_set(gpio_dev, PWR_PIN, 0);
-            stage = 2;
-            // 450ms 后回来执行第三步
-            k_work_reschedule(&xw12a_reset_work, K_MSEC(450));
-            break;
-
-        case 2: // 第三步：完成并重新开启长周期
-            stage = 0;
-            k_work_reschedule(&xw12a_reset_work, K_SECONDS(90)); // 默认值是 60
-            break;
-    }
-}
+extern struct k_work_delayable keep_alive_dwork;
 
 static int xw12a_pwr_init(const struct device *dev) {
     gpio_dev = DEVICE_DT_GET(PWR_PORT);
@@ -54,11 +24,11 @@ static int xw12a_pwr_init(const struct device *dev) {
     }
 
     gpio_pin_configure(gpio_dev, PWR_PIN, (use_touch == 1 ? GPIO_OUTPUT_LOW : GPIO_OUTPUT_HIGH));
-    k_work_init_delayable(&xw12a_reset_work, xw12a_reset_handler);
+    //k_work_init_delayable(&xw12a_reset_work, xw12a_reset_handler);
 
-    if (use_touch == 1) {
-        k_work_schedule(&xw12a_reset_work, K_SECONDS(60));
-    }
+    //if (use_touch == 1) {
+    //    k_work_schedule(&xw12a_reset_work, K_SECONDS(60));
+    //}
 
     return 0;
 }
@@ -66,7 +36,10 @@ static int xw12a_pwr_init(const struct device *dev) {
 static int xw12a_pwr_pm_action(const struct device *dev, enum pm_device_action action) {
     switch (action) {
         case PM_DEVICE_ACTION_SUSPEND:
-            k_work_cancel_delayable(&xw12a_reset_work);
+            //k_work_cancel_delayable(&xw12a_reset_work);
+            // 键盘休眠时，停止心跳并断电
+            k_work_cancel_delayable(&keep_alive_dwork);
+
             gpio_pin_set(gpio_dev, PWR_PIN, 1);
 
             #ifdef CONFIG_MCU_INT_SLEEP
@@ -85,7 +58,12 @@ static int xw12a_pwr_pm_action(const struct device *dev, enum pm_device_action a
             
             gpio_pin_set(gpio_dev, PWR_PIN, 0);
             k_msleep(450);
-            k_work_reschedule(&xw12a_reset_work, K_SECONDS(60));
+            //k_work_reschedule(&xw12a_reset_work, K_SECONDS(60));
+
+            // 5. 重新开启保活循环：安排 15 秒后执行第一次心跳
+            if (use_touch == 1) {
+                k_work_schedule(&keep_alive_dwork, K_SECONDS(15));
+            }
             return 0;
 
         default:
