@@ -24,11 +24,6 @@ static int xw12a_pwr_init(const struct device *dev) {
     }
 
     gpio_pin_configure(gpio_dev, PWR_PIN, (use_touch == 1 ? GPIO_OUTPUT_LOW : GPIO_OUTPUT_HIGH));
-    //k_work_init_delayable(&xw12a_reset_work, xw12a_reset_handler);
-
-    //if (use_touch == 1) {
-    //    k_work_schedule(&xw12a_reset_work, K_SECONDS(60));
-    //}
 
     return 0;
 }
@@ -36,29 +31,23 @@ static int xw12a_pwr_init(const struct device *dev) {
 static int xw12a_pwr_pm_action(const struct device *dev, enum pm_device_action action) {
     switch (action) {
         case PM_DEVICE_ACTION_SUSPEND:
-            //k_work_cancel_delayable(&xw12a_reset_work);
             // 键盘休眠时，停止心跳并断电
             k_work_cancel_delayable(&keep_alive_dwork);
 
             gpio_pin_set(gpio_dev, PWR_PIN, 1);
 
-            #ifdef CONFIG_MCU_INT_SLEEP
             gpio_pin_configure(gpio_dev, INT_PIN, GPIO_DISCONNECTED);
-            #endif
             
             return 0;
 
         case PM_DEVICE_ACTION_RESUME:
             // 1. 先恢复物理引脚状态（输入 + 上拉）
-            #ifdef CONFIG_MCU_INT_SLEEP
             gpio_pin_configure(gpio_dev, INT_PIN, GPIO_INPUT | GPIO_PULL_UP);
             // 2. 【最关键的一步】重新绑定双边沿触发中断！
             gpio_pin_interrupt_configure(gpio_dev, INT_PIN, GPIO_INT_EDGE_BOTH);
-            #endif
             
             gpio_pin_set(gpio_dev, PWR_PIN, 0);
             k_msleep(450);
-            //k_work_reschedule(&xw12a_reset_work, K_SECONDS(60));
 
             // 5. 重新开启保活循环：安排 15 秒后执行第一次心跳
             if (use_touch == 1) {

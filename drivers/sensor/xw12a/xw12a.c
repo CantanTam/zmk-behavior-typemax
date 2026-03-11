@@ -133,11 +133,8 @@ void xw12a_keep_alive_work_handler(struct k_work *work) {
             uint8_t dummy_buf[2];
 
             // --- 物理拉低 SDA 的关键动作 ---
-            // 在这里调用是绝对安全的，系统允许它“等待”硬件响应
             i2c_read_dt(&config->i2c, dummy_buf, sizeof(dummy_buf));
-            
-            // 调试用：成功执行后可以输出一个字符 B
-            key_tap(B); 
+
         }
     }
 
