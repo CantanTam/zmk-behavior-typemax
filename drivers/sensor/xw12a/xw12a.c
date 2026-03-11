@@ -135,6 +135,9 @@ void xw12a_keep_alive_work_handler(struct k_work *work) {
             // --- 物理拉低 SDA 的关键动作 ---
             i2c_read_dt(&config->i2c, dummy_buf, sizeof(dummy_buf));
 
+            // 测试输出
+            //key_tap(K);
+
         }
     }
 
