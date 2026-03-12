@@ -27,7 +27,7 @@ extern void light_up_ws2812(ws2812_color_t c1, ws2812_color_t c2, ws2812_color_t
 extern void ws2812_power_on(void);
 extern void ws2812_power_off(void);
 
-bool pad_action_statu = false;
+//bool pad_action_statu = false;
 bool top_pad_run_mode = false; 
 
 struct xw12a_data {
@@ -37,6 +37,8 @@ struct xw12a_data {
     const struct device *dev;                 // 指向设备实例的指针
 
     // --- 以下是搬进来的“私有记忆” ---
+    bool pad_action_statu;
+
     uint16_t prev_xw12a_value;
 
     uint64_t left_prev_time;
@@ -57,11 +59,13 @@ struct xw12a_config {
  /* key_tap 是完成一次按下、松开操作；key_press 是按下；key_release 是松开
  * encoded_keycode 编码后的键值（支持修饰键组合）
  */
-static void key_tap(uint32_t encoded_keycode) {
+static void key_tap(const struct device *dev, uint32_t encoded_keycode) {
+    struct xw12a_data *data = dev->data;
+
     if (encoded_keycode == CANCEL) {
         ws2812_power_off();
         top_pad_run_mode = !top_pad_run_mode;
-        pad_action_statu = false;
+        data->pad_action_statu = false;
         return;
     }
 
@@ -81,8 +85,6 @@ static void key_tap(uint32_t encoded_keycode) {
     raise_zmk_keycode_state_changed(
         zmk_keycode_state_changed_from_encoded(encoded_keycode, false, release_time)
     );
-
-    pad_action_statu = false;
 
 }
 
@@ -114,7 +116,7 @@ void xw12a_keep_alive_work_handler(struct k_work *work) {
     const struct device *dev = data->dev;
 
     // 只有在开启触摸功能 且 当前没有按键动作时，才执行保活逻辑
-    if (use_touch == 1 && pad_action_statu == false) {
+    if (use_touch == 1 && data->pad_action_statu == false) {
         const struct xw12a_config *config = dev->config;
         uint8_t dummy_buf[4]; // 维持 4 字节，产生足够的物理脉冲
         
@@ -123,7 +125,7 @@ void xw12a_keep_alive_work_handler(struct k_work *work) {
          * 这样即便其中一次因为总线繁忙或芯片微睡没响应，
          * 后续的连击也能确保 SDA 被拉低，满足手册防休眠要求。
          */
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 10; i++) {
             int ret = i2c_read_dt(&config->i2c, dummy_buf, sizeof(dummy_buf));
             
             // 如果读取成功，说明芯片已被激活，提前退出循环
@@ -137,7 +139,7 @@ void xw12a_keep_alive_work_handler(struct k_work *work) {
 
     // 无论是否执行了读取，都重新调度下一次 5 秒的心跳
     if (use_touch == 1) {
-        k_work_schedule(&data->keep_alive_dwork, K_SECONDS(5));
+        k_work_schedule(&data->keep_alive_dwork, K_SECONDS(15));
     }
 }
 
@@ -165,24 +167,24 @@ static uint8_t cut_xw12a_data(uint16_t raw_value, int shift_bits) {
 
 static void left_pad_action(const struct device *dev) {
     struct xw12a_data *data = dev->data; // 获取私有记忆
-    pad_action_statu = true;
+    data->pad_action_statu = true;
 
     uint8_t left_first_final_pad = data->left_first_pad + data->left_final_pad * data->left_final_pad;
 
     uint32_t left_pad_combo = left_dict_addr_padx(left_first_final_pad);
 
     if (left_pad_combo == 0x00){
-        pad_action_statu = false;
+        data->pad_action_statu = false;
         return;
     }
 
-    key_tap(left_pad_combo);
+    key_tap(dev, left_pad_combo);
 
     // --- 1. 长按判定 (500ms 内松手即视为单击) ---
     for (int count = 0; count < TAP_PRESS_GAP; count++) {
         k_msleep(100);
         if (cut_xw12a_data(get_xw12a_pad_value(dev), 12) == 0x0F) {
-            pad_action_statu = false;
+            data->pad_action_statu = false;
             data->prev_xw12a_value = get_xw12a_pad_value(dev);
             return; 
         }
@@ -198,7 +200,7 @@ static void left_pad_action(const struct device *dev) {
 
     // 只要手一松，立刻发释放，并退出
     key_release(left_pad_combo);
-    pad_action_statu = false;
+    data->pad_action_statu = false;
     data->prev_xw12a_value = get_xw12a_pad_value(dev);
     data->left_prev_time -= TAP_TAP_GAP;
     return;
@@ -209,7 +211,7 @@ static void left_pad_action(const struct device *dev) {
 static void top_pad_action(const struct device *dev)
 {
     struct xw12a_data *data = dev->data;
-    pad_action_statu = true;
+    data->pad_action_statu = true;
     if (cut_xw12a_data((get_xw12a_pad_value(dev) ^ data->prev_xw12a_value),8) == 0x00){
         return;
     }
@@ -227,7 +229,7 @@ static void top_pad_action(const struct device *dev)
             case 0x62 : c1 = GREEN; c2 = RED;  c3 = BLUE;   c4 = GREEN; break;
             default:
                 data->top_first_last_pad = 0x0F;
-                pad_action_statu = false;
+                data->pad_action_statu = false;
                 return;
         }
 
@@ -245,14 +247,14 @@ static void top_pad_action(const struct device *dev)
 
         uint32_t top_pad_combo = top_dict_addr_padx(top_first_last_func_pad);  
 
-        key_tap(top_pad_combo);
+        key_tap(dev, top_pad_combo);
 
         k_msleep(200);
 
     }
 
     data->top_prev_time -= TAP_TAP_GAP;
-    pad_action_statu = false;
+    data->pad_action_statu = false;
 
 };
 
@@ -261,7 +263,7 @@ static void pad_statu_detect(const struct device *dev)
 {
     struct xw12a_data *data = dev->data;
 
-    if (pad_action_statu){
+    if (data->pad_action_statu){
         return;
     }
 
@@ -357,6 +359,7 @@ static int xw12a_init(const struct device *dev)
     data->dev = dev;
 
     // --- 初始化这个实例的私有变量 ---
+    data->pad_action_statu = false;
     data->prev_xw12a_value = 0xFFFF;
     data->left_prev_time = 0;
     data->left_first_pad = 0x0F;
