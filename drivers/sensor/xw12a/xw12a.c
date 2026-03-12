@@ -107,20 +107,37 @@ static void key_release(uint32_t encoded_keycode) {
 }
 
 // 定时读取 i2c 数据，刺激 xw12a 以保持唤醒状态
+// 定时读取 i2c 数据，刺激 xw12a 以保持唤醒状态
 void xw12a_keep_alive_work_handler(struct k_work *work) {
-    // 关键：通过 work 指针找回它属于哪个 data 结构体
     struct k_work_delayable *dwork = k_work_delayable_from_work(work);
     struct xw12a_data *data = CONTAINER_OF(dwork, struct xw12a_data, keep_alive_dwork);
     const struct device *dev = data->dev;
 
+    // 只有在开启触摸功能 且 当前没有按键动作时，才执行保活逻辑
     if (use_touch == 1 && pad_action_statu == false) {
         const struct xw12a_config *config = dev->config;
-        uint8_t dummy_buf[2];
-        i2c_read_dt(&config->i2c, dummy_buf, sizeof(dummy_buf));
+        uint8_t dummy_buf[4]; // 维持 4 字节，产生足够的物理脉冲
+        
+        /* * 【强力唤醒逻辑】
+         * 在满足 pad_action_statu == false 的窗口期，进行连续 3 次尝试。
+         * 这样即便其中一次因为总线繁忙或芯片微睡没响应，
+         * 后续的连击也能确保 SDA 被拉低，满足手册防休眠要求。
+         */
+        for (int i = 0; i < 3; i++) {
+            int ret = i2c_read_dt(&config->i2c, dummy_buf, sizeof(dummy_buf));
+            
+            // 如果读取成功，说明芯片已被激活，提前退出循环
+            if (ret == 0) {
+                break;
+            }
+            // 如果读取失败，微等 1 毫秒后再次重试，增加唤醒成功率
+            k_busy_wait(1000);
+        }
     }
 
+    // 无论是否执行了读取，都重新调度下一次 5 秒的心跳
     if (use_touch == 1) {
-        k_work_schedule(&data->keep_alive_dwork, K_SECONDS(15));
+        k_work_schedule(&data->keep_alive_dwork, K_SECONDS(5));
     }
 }
 
