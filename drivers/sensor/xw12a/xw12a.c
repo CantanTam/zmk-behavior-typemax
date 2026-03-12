@@ -28,50 +28,33 @@ extern void ws2812_power_on(void);
 extern void ws2812_power_off(void);
 
 bool pad_action_statu = false;
-// 记录上一次的 xw12a 寄存器状态值
-uint16_t prev_xw12a_value = 0xFFFF;
+bool top_pad_run_mode = false; 
 
-// left pad 使用的时间戳和触控按钮记录
-uint64_t left_prev_time = 0;
-uint8_t left_first_pad = 0x0F;
-uint8_t left_final_pad = 0x0F;
+struct xw12a_data {
+    struct gpio_callback gpio_cb;
+    struct k_work work;
+    struct k_work_delayable keep_alive_dwork; // 保活定时器现在属于每个芯片自己
+    const struct device *dev;                 // 指向设备实例的指针
 
-// right pad 使用的时间戳和触控按钮记录
-uint64_t right_prev_time = 0;
-uint8_t right_first_pad = 0x0F;
-uint8_t right_final_pad = 0x0F;
+    // --- 以下是搬进来的“私有记忆” ---
+    uint16_t prev_xw12a_value;
 
+    uint64_t left_prev_time;
+    uint8_t left_first_pad;
+    uint8_t left_final_pad;
 
-// top pad 使用的时间戳和触控按钮记录
-uint64_t top_prev_time = 0;
-uint8_t top_first_pad = 0x0F;
-uint8_t top_final_pad = 0x0F;
-
-
-
-// 记录 pad9 ~ pad11 在 top_pad_run_mode 为 false 时计算得到的值；
-uint8_t top_first_last_pad = 0x0F;
-
-bool top_pad_run_mode = false;
+    uint64_t top_prev_time;
+    uint8_t top_first_pad;
+    uint8_t top_final_pad;
+    uint8_t top_first_last_pad;
+};
 
 struct xw12a_config {
     struct i2c_dt_spec i2c;
     struct gpio_dt_spec int_gpio;
 };
 
-struct xw12a_data {
-    struct gpio_callback gpio_cb;
-    struct k_work work;
-    const struct device *dev;
-};
-
-static struct xw12a_data xw12a_data_0; 
-struct k_work_delayable keep_alive_dwork;
-
-//struct k_timer keep_alive_timer;
-
-/**
- * key_tap 是完成一次按下、松开操作；key_press 是按下；key_release 是松开
+ /* key_tap 是完成一次按下、松开操作；key_press 是按下；key_release 是松开
  * encoded_keycode 编码后的键值（支持修饰键组合）
  */
 static void key_tap(uint32_t encoded_keycode) {
@@ -123,28 +106,21 @@ static void key_release(uint32_t encoded_keycode) {
     //k_msleep(30);
 }
 
-// 2. 核心保活函数：运行在“线程上下文”，可以安全调用 i2c_read
+// 定时读取 i2c 数据，刺激 xw12a 以保持唤醒状态
 void xw12a_keep_alive_work_handler(struct k_work *work) {
-    // 逻辑检查：如果没开启触摸，或者用户正在操作，就不发心跳
+    // 关键：通过 work 指针找回它属于哪个 data 结构体
+    struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+    struct xw12a_data *data = CONTAINER_OF(dwork, struct xw12a_data, keep_alive_dwork);
+    const struct device *dev = data->dev;
+
     if (use_touch == 1 && pad_action_statu == false) {
-        const struct device *dev = xw12a_data_0.dev;
-        if (dev != NULL) {
-            const struct xw12a_config *config = dev->config;
-            uint8_t dummy_buf[2];
-
-            // --- 物理拉低 SDA 的关键动作 ---
-            i2c_read_dt(&config->i2c, dummy_buf, sizeof(dummy_buf));
-
-            // 测试输出
-            //key_tap(K);
-
-        }
+        const struct xw12a_config *config = dev->config;
+        uint8_t dummy_buf[2];
+        i2c_read_dt(&config->i2c, dummy_buf, sizeof(dummy_buf));
     }
 
-    // 3. 【最重要的循环逻辑】执行完后，告诉系统：15秒后再叫我一次
-    // 这样就形成了一个永不停止的定时循环
     if (use_touch == 1) {
-        k_work_schedule(&keep_alive_dwork, K_SECONDS(15));
+        k_work_schedule(&data->keep_alive_dwork, K_SECONDS(15));
     }
 }
 
@@ -171,10 +147,10 @@ static uint8_t cut_xw12a_data(uint16_t raw_value, int shift_bits) {
 
 
 static void left_pad_action(const struct device *dev) {
-
+    struct xw12a_data *data = dev->data; // 获取私有记忆
     pad_action_statu = true;
 
-    uint8_t left_first_final_pad = left_first_pad + left_final_pad * left_final_pad;
+    uint8_t left_first_final_pad = data->left_first_pad + data->left_final_pad * data->left_final_pad;
 
     uint32_t left_pad_combo = left_dict_addr_padx(left_first_final_pad);
 
@@ -190,7 +166,7 @@ static void left_pad_action(const struct device *dev) {
         k_msleep(100);
         if (cut_xw12a_data(get_xw12a_pad_value(dev), 12) == 0x0F) {
             pad_action_statu = false;
-            prev_xw12a_value = get_xw12a_pad_value(dev);
+            data->prev_xw12a_value = get_xw12a_pad_value(dev);
             return; 
         }
     }
@@ -206,75 +182,34 @@ static void left_pad_action(const struct device *dev) {
     // 只要手一松，立刻发释放，并退出
     key_release(left_pad_combo);
     pad_action_statu = false;
-    prev_xw12a_value = get_xw12a_pad_value(dev);
-    left_prev_time -= TAP_TAP_GAP;
+    data->prev_xw12a_value = get_xw12a_pad_value(dev);
+    data->left_prev_time -= TAP_TAP_GAP;
     return;
 
-}
-
-static void right_pad_action(const struct device *dev) {
-
-    pad_action_statu = true;
-
-    uint8_t right_first_final_pad = right_first_pad + right_final_pad * right_final_pad;
-    
-    uint32_t right_pad_combo = right_dict_addr_padx(right_first_final_pad);
-
-    if (right_pad_combo == 0x00){
-        pad_action_statu = false;
-        return;
-    }
-
-    key_tap(right_pad_combo);
-
-    // --- 1. 长按判定 (500ms 内松手即视为单击) ---
-    for (int count = 0; count < TAP_PRESS_GAP; count++) {
-        k_msleep(100);
-        if (cut_xw12a_data(get_xw12a_pad_value(dev), 8) == 0x0F) {
-            pad_action_statu = false;
-            prev_xw12a_value = get_xw12a_pad_value(dev);
-            return; 
-        }
-    }
-
-    // 只发送一次按下，不要写循环！
-    key_press(right_pad_combo);
-
-    // 阻塞式等待：手指不离开，程序就一直停在这里检查，什么都不发
-    while (cut_xw12a_data(get_xw12a_pad_value(dev), 8) != 0x0F) {
-        k_msleep(100); // 极高频检查
-    }
-
-    // 只要手一松，立刻发释放，并退出
-    key_release(right_pad_combo);
-    pad_action_statu = false;
-    prev_xw12a_value = get_xw12a_pad_value(dev);
-    right_prev_time -= TAP_TAP_GAP;
-    return;
 }
 
 // 根据 top_pad_mode 函数结果执行相应的 pad 操作
 static void top_pad_action(const struct device *dev)
 {
+    struct xw12a_data *data = dev->data;
     pad_action_statu = true;
-    // 对比 xw12a 寄存器九至十二位值的变化，当九至十二位产生变化才执行 pad9 ~ pad11 的操作函数
-    if (cut_xw12a_data((get_xw12a_pad_value(dev) ^ prev_xw12a_value),8) == 0x00){
+    if (cut_xw12a_data((get_xw12a_pad_value(dev) ^ data->prev_xw12a_value),8) == 0x00){
         return;
     }
 
     if (top_pad_run_mode == false){
 
-        top_first_last_pad = top_first_pad * top_final_pad;
+        data->top_first_last_pad = data->top_first_pad * data->top_final_pad;
 
         ws2812_color_t c1 = OFF, c2 = OFF, c3 = OFF, c4 = OFF;
 
-        switch (top_first_last_pad){
+        switch (data->top_first_last_pad){
             case 0x4D : c1 = GREEN; c2 = GREEN; c3 = RED;   c4 = RED;   break;
             case 0x8F : c1 = RED;   c2 = GREEN; c3 = GREEN; c4 = RED;   break;
             case 0xB6 : c1 = RED;   c2 = BLUE;  c3 = GREEN; c4 = GREEN; break;
             case 0x62 : c1 = GREEN; c2 = RED;  c3 = BLUE;   c4 = GREEN; break;
             default:
-                top_first_last_pad = 0x0F;
+                data->top_first_last_pad = 0x0F;
                 pad_action_statu = false;
                 return;
         }
@@ -283,13 +218,13 @@ static void top_pad_action(const struct device *dev)
         k_msleep(100);
         light_up_ws2812(c1, c2, c3, c4);
         top_pad_run_mode = true;
-        prev_xw12a_value = get_xw12a_pad_value(dev);
+        data->prev_xw12a_value = get_xw12a_pad_value(dev);
 
     } else {
 
         uint8_t top_func_pad = cut_xw12a_data(get_xw12a_pad_value(dev), 8);     
 
-        uint8_t top_first_last_func_pad = top_first_last_pad + top_func_pad;
+        uint8_t top_first_last_func_pad = data->top_first_last_pad + top_func_pad;
 
         uint32_t top_pad_combo = top_dict_addr_padx(top_first_last_func_pad);  
 
@@ -299,7 +234,7 @@ static void top_pad_action(const struct device *dev)
 
     }
 
-    top_prev_time -= TAP_TAP_GAP;
+    data->top_prev_time -= TAP_TAP_GAP;
     pad_action_statu = false;
 
 };
@@ -307,6 +242,8 @@ static void top_pad_action(const struct device *dev)
 // --- 核心状态检测函数 ---
 static void pad_statu_detect(const struct device *dev)
 {
+    struct xw12a_data *data = dev->data;
+
     if (pad_action_statu){
         return;
     }
@@ -316,72 +253,50 @@ static void pad_statu_detect(const struct device *dev)
     uint16_t xw12a_pad_value = get_xw12a_pad_value(dev);
 
     if (xw12a_pad_value == 0xFFFF ){
-        prev_xw12a_value = 0xFFFF;
+        data->prev_xw12a_value = 0xFFFF;
         return;
     }
 
     //  比较前后两种 touch pad 状态来进行判定
-    uint16_t prev_current_pad_compare = prev_xw12a_value ^ xw12a_pad_value;
+    uint16_t prev_current_pad_compare = data->prev_xw12a_value ^ xw12a_pad_value;
 
     // left pad 动作的判定
     if ( cut_xw12a_data(prev_current_pad_compare, 12) != 0x00 ){
 
         if ( cut_xw12a_data(xw12a_pad_value, 12) != 0x00 ){
 
-            if ( k_uptime_get() - left_prev_time <= TAP_TAP_GAP ){
+            if ( k_uptime_get() - data->left_prev_time <= TAP_TAP_GAP ){
 
-                left_final_pad = cut_xw12a_data(xw12a_pad_value, 12);
+                data->left_final_pad = cut_xw12a_data(xw12a_pad_value, 12);
                 left_pad_action(dev);
 
             } else {   
 
-                left_first_pad = cut_xw12a_data(xw12a_pad_value, 12);
+                data->left_first_pad = cut_xw12a_data(xw12a_pad_value, 12);
 
             }
 
-            left_prev_time = k_uptime_get();
+            data->left_prev_time = k_uptime_get();
         }
     } 
-    
-    // 直接用 pad4 ~ pad9 来实现 top_pad_action 功能，所以这里先注释掉
-    /*
-    if ( cut_xw12a_data(prev_current_pad_compare, 8) != 0x00 ){
-
-        if ( cut_xw12a_data(xw12a_pad_value, 8) != 0x00 ){
-
-            if ( k_uptime_get() - right_prev_time <= TAP_TAP_GAP ){
-  
-                right_final_pad = cut_xw12a_data(xw12a_pad_value, 8);
-                right_pad_action(dev);
-
-            } else {
-
-                right_first_pad = cut_xw12a_data(xw12a_pad_value, 8);
-
-            }
-
-            right_prev_time = k_uptime_get();
-        }
-    }
-    */
 
     if ( cut_xw12a_data(prev_current_pad_compare, 8) != 0x00 ){
         if ( top_pad_run_mode == false ){
 
             if ( cut_xw12a_data(xw12a_pad_value, 8) != 0x00 ){
 
-                if ( k_uptime_get() - top_prev_time <= TAP_TAP_GAP ){
+                if ( k_uptime_get() - data->top_prev_time <= TAP_TAP_GAP ){
 
-                    top_final_pad = cut_xw12a_data(xw12a_pad_value, 8);
+                    data->top_final_pad = cut_xw12a_data(xw12a_pad_value, 8);
                     top_pad_action(dev);
 
                 } else {
 
-                    top_first_pad = cut_xw12a_data(xw12a_pad_value, 8);
+                    data->top_first_pad = cut_xw12a_data(xw12a_pad_value, 8);
 
                 }
 
-                top_prev_time = k_uptime_get();
+                data->top_prev_time = k_uptime_get();
             }
 
         } else {
@@ -390,7 +305,7 @@ static void pad_statu_detect(const struct device *dev)
         }
     }
 
-    prev_xw12a_value = get_xw12a_pad_value(dev);
+    data->prev_xw12a_value = get_xw12a_pad_value(dev);
 
     // 扫动补丁：若仍有键被按住，继续处理,这一段是 gemini 给的答案，
     // 注释掉就可以正常运行，但我不敢删除它
@@ -424,6 +339,16 @@ static int xw12a_init(const struct device *dev)
     struct xw12a_data *data = dev->data;
     data->dev = dev;
 
+    // --- 初始化这个实例的私有变量 ---
+    data->prev_xw12a_value = 0xFFFF;
+    data->left_prev_time = 0;
+    data->left_first_pad = 0x0F;
+    data->left_final_pad = 0x0F;
+    data->top_prev_time = 0;
+    data->top_first_pad = 0x0F;
+    data->top_final_pad = 0x0F;
+    data->top_first_last_pad = 0x0F;
+
     if (!device_is_ready(config->i2c.bus) || !device_is_ready(config->int_gpio.port)) {
         return -ENODEV;
     }
@@ -436,20 +361,27 @@ static int xw12a_init(const struct device *dev)
     gpio_add_callback(config->int_gpio.port, &data->gpio_cb);
 
     // --- 新增：初始化并启动心跳定时器 ---
-    k_work_init_delayable(&keep_alive_dwork, xw12a_keep_alive_work_handler);
+    k_work_init_delayable(&data->keep_alive_dwork, xw12a_keep_alive_work_handler);
 
     if (use_touch == 1) {
         // 安排 15 秒后进行第一次“心跳”
-        k_work_schedule(&keep_alive_dwork, K_SECONDS(15));
+        k_work_schedule(&data->keep_alive_dwork, K_SECONDS(15));
     }
 
     return 0;
 }
 
-static struct xw12a_data xw12a_data_0;
-static const struct xw12a_config xw12a_config_0 = {
-    .i2c = I2C_DT_SPEC_INST_GET(0),
-    .int_gpio = GPIO_DT_SPEC_INST_GET(0, int_gpios),
-};
+// --- 自动化分身宏 ---
+// 这个宏就像一个模具，传入 n=0，它就造出第 0 号芯片的内存和配置；传入 n=1，它就造出第 1 号的。
+#define XW12A_INST(n)                                              \
+    static struct xw12a_data xw12a_data_##n;                       \
+    static const struct xw12a_config xw12a_config_##n = {          \
+        .i2c = I2C_DT_SPEC_INST_GET(n),                            \
+        .int_gpio = GPIO_DT_SPEC_INST_GET(n, int_gpios),           \
+    };                                                             \
+    DEVICE_DT_INST_DEFINE(n, xw12a_init, NULL,                     \
+                          &xw12a_data_##n, &xw12a_config_##n,      \
+                          POST_KERNEL, 99, NULL);
 
-DEVICE_DT_INST_DEFINE(0, xw12a_init, NULL, &xw12a_data_0, &xw12a_config_0, POST_KERNEL, 99, NULL);
+// 编译器大管家：去读取你的 .dts 文件，发现几个 "okay" 状态的 xw12a，就自动运行几次上面的模具！
+DT_INST_FOREACH_STATUS_OKAY(XW12A_INST)
