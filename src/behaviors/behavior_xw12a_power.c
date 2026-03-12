@@ -8,6 +8,7 @@
 // 1. 定义引脚和端口 (去掉 INT_ONE，不再干涉它)
 #define PWR_PIN  10
 #define INT_ONE  6
+#define INT_TWO  14
 #define PWR_PORT DT_NODELABEL(gpio1)
 
 // 外部状态变量
@@ -23,7 +24,7 @@ static int xw12a_pwr_init(const struct device *dev) {
     }
 
     gpio_pin_configure(gpio_dev, PWR_PIN, (use_touch == 1 ? GPIO_OUTPUT_LOW : GPIO_OUTPUT_HIGH));
-
+    
     return 0;
 }
 
@@ -33,14 +34,17 @@ static int xw12a_pwr_pm_action(const struct device *dev, enum pm_device_action a
             gpio_pin_set(gpio_dev, PWR_PIN, 1);
 
             gpio_pin_configure(gpio_dev, INT_ONE, GPIO_DISCONNECTED);
+            gpio_pin_configure(gpio_dev, INT_TWO, GPIO_DISCONNECTED);
             
             return 0;
 
         case PM_DEVICE_ACTION_RESUME:
             // 1. 先恢复物理引脚状态（输入 + 上拉）
             gpio_pin_configure(gpio_dev, INT_ONE, GPIO_INPUT | GPIO_PULL_UP);
+            gpio_pin_configure(gpio_dev, INT_TWO, GPIO_INPUT | GPIO_PULL_UP);
             // 2. 【最关键的一步】重新绑定双边沿触发中断！
             gpio_pin_interrupt_configure(gpio_dev, INT_ONE, GPIO_INT_EDGE_BOTH);
+            gpio_pin_interrupt_configure(gpio_dev, INT_TWO, GPIO_INT_EDGE_BOTH);
             
             gpio_pin_set(gpio_dev, PWR_PIN, 0);
             k_msleep(450);
