@@ -120,7 +120,7 @@ void xw12a_keep_alive_work_handler(struct k_work *work) {
          * 这样即便其中一次因为总线繁忙或芯片微睡没响应，
          * 后续的连击也能确保 SDA 被拉低，满足手册防休眠要求。
          */
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 4; i++) {
             int ret = i2c_read_dt(&config->i2c, dummy_buf, sizeof(dummy_buf));
             
             // 如果读取成功，说明芯片已被激活，提前退出循环
@@ -323,11 +323,16 @@ static void pad_statu_detect(const struct device *dev)
 
     data->prev_xw12a_value = get_xw12a_pad_value(dev);
 
-    // 扫动补丁：若仍有键被按住，继续处理,这一段是 gemini 给的答案，
-    // 注释掉就可以正常运行，但我不敢删除它
-    /*if (xw12a_pad_value != 0xFFFF) {
-        k_work_submit(&data->work);
-    }*/
+    //这里我不确定是如何操作的，如果有反作用，尝试注释掉它
+    uint8_t front_pad = cut_xw12a_data(xw12a_pad_value, 12);
+    uint8_t top_pad  = cut_xw12a_data(xw12a_pad_value, 8);
+    if (front_pad != 0x0F || top_pad != 0x0F) {
+        if (xw12a_pad_value != 0xFFFF) {
+            k_work_reschedule(&data->keep_alive_dwork, K_MSEC(10));
+        }
+    }
+
+
 }
 
 // --- Zephyr 驱动标准回调与初始化 ---
