@@ -42,8 +42,8 @@ struct xw12a_data {
     uint16_t prev_xw12a_value;
 
     uint64_t left_prev_time;
-    uint8_t left_first_pad;
-    uint8_t left_final_pad;
+    uint8_t front_first_pad;
+    uint8_t front_final_pad;
 
     uint64_t top_prev_time;
     uint8_t top_first_pad;
@@ -94,8 +94,6 @@ static void key_press(uint32_t encoded_keycode) {
     raise_zmk_keycode_state_changed(
         zmk_keycode_state_changed_from_encoded(encoded_keycode, true, press_time)
     );
-
-    //k_msleep(50);
 }
 
 static void key_release(uint32_t encoded_keycode) {
@@ -104,11 +102,8 @@ static void key_release(uint32_t encoded_keycode) {
     raise_zmk_keycode_state_changed(
         zmk_keycode_state_changed_from_encoded(encoded_keycode, false, release_time)
     );
-
-    //k_msleep(30);
 }
 
-// 定时读取 i2c 数据，刺激 xw12a 以保持唤醒状态
 // 定时读取 i2c 数据，刺激 xw12a 以保持唤醒状态
 void xw12a_keep_alive_work_handler(struct k_work *work) {
     struct k_work_delayable *dwork = k_work_delayable_from_work(work);
@@ -165,20 +160,20 @@ static uint8_t cut_xw12a_data(uint16_t raw_value, int shift_bits) {
 }
 
 
-static void left_pad_action(const struct device *dev) {
+static void front_pad_action(const struct device *dev) {
     struct xw12a_data *data = dev->data; // 获取私有记忆
     data->pad_action_statu = true;
 
-    uint8_t left_first_final_pad = data->left_first_pad + data->left_final_pad * data->left_final_pad;
+    uint8_t front_first_final_pad = data->front_first_pad + data->front_final_pad * data->front_final_pad;
 
-    uint32_t left_pad_combo = left_dict_addr_padx(left_first_final_pad);
+    uint32_t front_pad_combo = left_dict_addr_padx(front_first_final_pad);
 
-    if (left_pad_combo == 0x00){
+    if (front_pad_combo == 0x00){
         data->pad_action_statu = false;
         return;
     }
 
-    key_tap(dev, left_pad_combo);
+    key_tap(dev, front_pad_combo);
 
     // --- 1. 长按判定 (500ms 内松手即视为单击) ---
     for (int count = 0; count < TAP_PRESS_GAP; count++) {
@@ -191,7 +186,7 @@ static void left_pad_action(const struct device *dev) {
     }
 
     // 只发送一次按下，不要写循环！
-    key_press(left_pad_combo);
+    key_press(front_pad_combo);
 
     // 阻塞式等待：手指不离开，程序就一直停在这里检查，什么都不发
     while (cut_xw12a_data(get_xw12a_pad_value(dev), 12) != 0x0F) {
@@ -199,7 +194,7 @@ static void left_pad_action(const struct device *dev) {
     }
 
     // 只要手一松，立刻发释放，并退出
-    key_release(left_pad_combo);
+    key_release(front_pad_combo);
     data->pad_action_statu = false;
     data->prev_xw12a_value = get_xw12a_pad_value(dev);
     data->left_prev_time -= TAP_TAP_GAP;
@@ -226,7 +221,9 @@ static void top_pad_action(const struct device *dev)
             case 0x4D : c1 = GREEN; c2 = GREEN; c3 = RED;   c4 = RED;   break;
             case 0x8F : c1 = RED;   c2 = GREEN; c3 = GREEN; c4 = RED;   break;
             case 0xB6 : c1 = RED;   c2 = BLUE;  c3 = GREEN; c4 = GREEN; break;
-            case 0x62 : c1 = GREEN; c2 = RED;  c3 = BLUE;   c4 = GREEN; break;
+            case 0x62 : c1 = GREEN; c2 = RED;   c3 = BLUE;  c4 = GREEN; break;
+            case 0x9A : c1 = BLUE;  c2 = GREEN; c3 = RED;   c4 = GREEN; break;
+            case 0x5B : c1 = GREEN; c2 = RED;   c3 = GREEN; c4 = BLUE;  break;
             default:
                 data->top_first_last_pad = 0x0F;
                 data->pad_action_statu = false;
@@ -286,12 +283,12 @@ static void pad_statu_detect(const struct device *dev)
 
             if ( k_uptime_get() - data->left_prev_time <= TAP_TAP_GAP ){
 
-                data->left_final_pad = cut_xw12a_data(xw12a_pad_value, 12);
-                left_pad_action(dev);
+                data->front_final_pad = cut_xw12a_data(xw12a_pad_value, 12);
+                front_pad_action(dev);
 
             } else {   
 
-                data->left_first_pad = cut_xw12a_data(xw12a_pad_value, 12);
+                data->front_first_pad = cut_xw12a_data(xw12a_pad_value, 12);
 
             }
 
@@ -362,8 +359,8 @@ static int xw12a_init(const struct device *dev)
     data->pad_action_statu = false;
     data->prev_xw12a_value = 0xFFFF;
     data->left_prev_time = 0;
-    data->left_first_pad = 0x0F;
-    data->left_final_pad = 0x0F;
+    data->front_first_pad = 0x0F;
+    data->front_final_pad = 0x0F;
     data->top_prev_time = 0;
     data->top_first_pad = 0x0F;
     data->top_final_pad = 0x0F;

@@ -4,7 +4,7 @@
 ，key_tap 才能实现反转 top_pad_run_mode 布尔值*/
 #define CANCEL 0x0F000001 
 
-//定义各个 PAD_X_Y 的操作：
+// front pad 的各种操作
 #define PAD_ZERO_ZERO    (LS(LC(Z)))
 #define PAD_ONE_ONE      (DELETE)
 #define PAD_TWO_TWO      (BACKSPACE)
@@ -16,34 +16,37 @@
 #define PAD_ZERO_THREE   (END)
 #define PAD_THREE_ZERO   (HOME)
 
-#define PAD_FOUR_FOUR    (BACKSPACE)
-#define PAD_FIVE_FIVE    (PAGE_DOWN)
-#define PAD_SIX_SIX      (LEFT)
-#define PAD_SEVEN_SEVEN  (RIGHT)
-#define PAD_FOUR_FIVE    (END)
-#define PAD_FIVE_FOUR    (LC(Z))
-#define PAD_SIX_SEVEN    (RIGHT)
-#define PAD_SEVEN_SIX    (LEFT)
 
-#define PAD_EIGHT_X_NINE_EIGHT    (C_BRIGHTNESS_INC)
-#define PAD_EIGHT_X_NINE_NINE     (C_BRIGHTNESS_DEC)
-#define PAD_EIGHT_X_NINE_TEN      (CANCEL)
-#define PAD_EIGHT_X_NINE_ELEVEN   (CANCEL)
+// top pad 的各种操作
+#define PAD_FOUR_X_FIVE_FOUR      (C_BRIGHTNESS_INC)
+#define PAD_FOUR_X_FIVE_FIVE      (C_BRIGHTNESS_DEC)
+#define PAD_FOUR_X_FIVE_SIX       (CANCEL)
+#define PAD_FOUR_X_FIVE_SEVEN     (CANCEL)
 
-#define PAD_NINE_X_TEN_EIGHT      (CANCEL)
-#define PAD_NINE_X_TEN_NINE       (C_REWIND)
-#define PAD_NINE_X_TEN_TEN        (C_FAST_FORWARD)
-#define PAD_NINE_X_TEN_ELEVEN     (CANCEL)
+#define PAD_FIVE_X_SIX_FOUR       (CANCEL)
+#define PAD_FIVE_X_SIX_FIVE       (C_REWIND)
+#define PAD_FIVE_X_SIX_SIX        (C_FAST_FORWARD)
+#define PAD_FIVE_X_SIX_SEVEN      (CANCEL)
 
-#define PAD_TEN_X_ELEVEN_EIGHT    (CANCEL)
-#define PAD_TEN_X_ELEVEN_NINE     (C_MUTE)
-#define PAD_TEN_X_ELEVEN_TEN      (C_VOLUME_DOWN)
-#define PAD_TEN_X_ELEVEN_ELEVEN   (C_VOLUME_UP)
+#define PAD_SIX_X_SEVEN_FOUR      (CANCEL)
+#define PAD_SIX_X_SEVEN_FIVE      (C_MUTE)
+#define PAD_SIX_X_SEVEN_SIX       (C_VOLUME_DOWN)
+#define PAD_SIX_X_SEVEN_SEVEN     (C_VOLUME_UP)
 
-#define PAD_EIGHT_X_ELEVEN_EIGHT   (C_PREV)
-#define PAD_EIGHT_X_ELEVEN_NINE    (CANCEL)
-#define PAD_EIGHT_X_ELEVEN_TEN     (C_PLAY_PAUSE)
-#define PAD_EIGHT_X_ELEVEN_ELEVEN  (C_NEXT)
+#define PAD_FOUR_X_SEVEN_FOUR     (C_PREV)
+#define PAD_FOUR_X_SEVEN_FIVE     (CANCEL)
+#define PAD_FOUR_X_SEVEN_SIX      (C_PLAY_PAUSE)
+#define PAD_FOUR_X_SEVEN_SEVEN    (C_NEXT)
+
+#define PAD_FIVE_X_SEVEN_FOUR     (LC(N0))
+#define PAD_FIVE_X_SEVEN_FIVE     (LC(MINUS))
+#define PAD_FIVE_X_SEVEN_SIX      (CANCEL)
+#define PAD_FIVE_X_SEVEN_SEVEN    (LC(PLUS))
+
+#define PAD_FOUR_X_SIX_FOUR       (LG(PLUS))
+#define PAD_FOUR_X_SIX_FIVE       (CANCEL)
+#define PAD_FOUR_X_SIX_SIX        (LG(MINUS))
+#define PAD_FOUR_X_SIX_SEVEN      (LG(ESC))
 
 
 //extern bool left_pad_statu;
@@ -55,8 +58,8 @@ struct dict_struct {
     uint32_t dict_value;   // 对应的按键值
 };
 
-// pad0 pad1 pad2 pad3 使用 left_pad_dict 字典
-static const struct dict_struct left_pad_dict[] = {
+// pad0 pad1 pad2 pad3 使用 front_pad_dict 字典
+static const struct dict_struct front_pad_dict[] = {
     { 0x38, PAD_ZERO_ZERO   },
     { 0x84, PAD_ONE_ONE     },
     { 0xB6, PAD_TWO_TWO     },
@@ -72,44 +75,16 @@ static const struct dict_struct left_pad_dict[] = {
 
 
 // 紧跟其后，自动计算长度
-#define LEFT_PAD_DICT_SIZE (sizeof(left_pad_dict) / sizeof(left_pad_dict[0]))
+#define FRONT_PAD_DICT_SIZE (sizeof(front_pad_dict) / sizeof(front_pad_dict[0]))
 
 // 然后在查找函数里使用它
 uint32_t left_dict_addr_padx(uint8_t padx) {
-    for (int i = 0; i < LEFT_PAD_DICT_SIZE; i++) { // 永远是正确的次数
-        if (left_pad_dict[i].dict_key == padx) {
-            return left_pad_dict[i].dict_value;
+    for (int i = 0; i < FRONT_PAD_DICT_SIZE; i++) { // 永远是正确的次数
+        if (front_pad_dict[i].dict_key == padx) {
+            return front_pad_dict[i].dict_value;
         }
     }
     //left_pad_statu = false;
-    return 0;
-}
-
-
-
-// pad0 pad1 pad2 pad3 使用 right_pad_dict 字典
-static const struct dict_struct right_pad_dict[] = {
-    { 0x38, PAD_FOUR_FOUR   },
-    { 0x84, PAD_FIVE_FIVE   },
-    { 0xB6, PAD_SIX_SIX     },
-    { 0xD2, PAD_SEVEN_SEVEN },
-    { 0x80, PAD_FOUR_FIVE   },
-    { 0x3C, PAD_FIVE_FOUR   },
-    { 0xD1, PAD_SIX_SEVEN   },
-    { 0xB7, PAD_SEVEN_SIX   },
-    
-};
-
-// 紧跟其后，自动计算长度
-#define RIGHT_PAD_DICT_SIZE (sizeof(right_pad_dict) / sizeof(right_pad_dict[0]))
-
-// 然后在查找函数里使用它
-uint32_t right_dict_addr_padx(uint8_t padx) {
-    for (int i = 0; i < RIGHT_PAD_DICT_SIZE; i++) { // 永远是正确的次数
-        if (right_pad_dict[i].dict_key == padx) {
-            return right_pad_dict[i].dict_value;
-        }
-    }
     return 0;
 }
 
@@ -118,28 +93,40 @@ uint32_t right_dict_addr_padx(uint8_t padx) {
 // 如果新的 xw12a 芯片正常的话，这里要做出修改
 static const struct dict_struct top_pad_dict[] = {
     // 屏幕亮度控制
-    { 0x54, PAD_EIGHT_X_NINE_EIGHT   },
-    { 0x58, PAD_EIGHT_X_NINE_NINE    },
-    { 0x5A, PAD_EIGHT_X_NINE_TEN     },
-    { 0x5B, PAD_EIGHT_X_NINE_ELEVEN  },
+    { 0x54, PAD_FOUR_X_FIVE_FOUR     },
+    { 0x58, PAD_FOUR_X_FIVE_FIVE     },
+    { 0x5A, PAD_FOUR_X_FIVE_SIX      },
+    { 0x5B, PAD_FOUR_X_FIVE_SEVEN    },
 
     // 快进快退控制
-    { 0x96, PAD_NINE_X_TEN_EIGHT     },
-    { 0x9A, PAD_NINE_X_TEN_NINE      },
-    { 0x9C, PAD_NINE_X_TEN_TEN       },
-    { 0x9D, PAD_NINE_X_TEN_ELEVEN    },
+    { 0x96, PAD_FIVE_X_SIX_FOUR      },
+    { 0x9A, PAD_FIVE_X_SIX_FIVE      },
+    { 0x9C, PAD_FIVE_X_SIX_SIX       },
+    { 0x9D, PAD_FIVE_X_SIX_SEVEN     },
 
     // 音量控制
-    { 0xBD, PAD_TEN_X_ELEVEN_EIGHT   },
-    { 0xC1, PAD_TEN_X_ELEVEN_NINE    },
-    { 0xC3, PAD_TEN_X_ELEVEN_TEN     },
-    { 0xC4, PAD_TEN_X_ELEVEN_ELEVEN  },
+    { 0xBD, PAD_SIX_X_SEVEN_FOUR     },
+    { 0xC1, PAD_SIX_X_SEVEN_FIVE     },
+    { 0xC3, PAD_SIX_X_SEVEN_SIX      },
+    { 0xC4, PAD_SIX_X_SEVEN_SEVEN    },
 
     // 媒体控制
-    { 0x69, PAD_EIGHT_X_ELEVEN_EIGHT },
-    { 0x6D, PAD_EIGHT_X_ELEVEN_NINE  },
-    { 0x6F, PAD_EIGHT_X_ELEVEN_TEN   },
-    { 0x70, PAD_EIGHT_X_ELEVEN_ELEVEN},
+    { 0x69, PAD_FOUR_X_SEVEN_FOUR    },
+    { 0x6D, PAD_FOUR_X_SEVEN_FIVE    },
+    { 0x6F, PAD_FOUR_X_SEVEN_SIX     },
+    { 0x70, PAD_FOUR_X_SEVEN_SEVEN   },
+
+    // 放大缩小页面
+    { 0xA1, PAD_FIVE_X_SEVEN_FOUR    },
+    { 0xA5, PAD_FIVE_X_SEVEN_FIVE    },
+    { 0xA7, PAD_FIVE_X_SEVEN_SIX     },
+    { 0xA8, PAD_FIVE_X_SEVEN_SEVEN   },
+
+    // 放大缩小桌面
+    { 0x62, PAD_FOUR_X_SIX_FOUR      },
+    { 0x66, PAD_FOUR_X_SIX_FIVE      },
+    { 0x68, PAD_FOUR_X_SIX_SIX       },
+    { 0x69, PAD_FOUR_X_SIX_SEVEN     },
 };
 
 // 紧跟其后，自动计算长度
