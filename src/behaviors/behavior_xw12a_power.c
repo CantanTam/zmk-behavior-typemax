@@ -8,7 +8,7 @@
 // 1. 定义引脚和端口 (去掉 INT_ONE，不再干涉它)
 #define PWR_PIN  10
 #define INT_ONE  6
-#define INT_TWO  14
+#define INT_TWO  11
 #define PWR_PORT DT_NODELABEL(gpio1)
 
 // 外部状态变量
